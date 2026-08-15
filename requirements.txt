@@ -1,0 +1,13 @@
+# core (any CUDA/MPS box)
+torch>=2.6
+transformers>=5.0
+numpy>=1.26
+accelerate
+
+# native MXFP4 on NVIDIA (gpt-oss-20b etc.) — Linux/CUDA only
+triton>=3.4 ; platform_system == "Linux"
+kernels ; platform_system == "Linux"
+
+# Apple Silicon watermarking bridge (see src/synthid_mlx.py)
+mlx ; platform_system == "Darwin"
+mlx-lm ; platform_system == "Darwin"
