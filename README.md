@@ -2,52 +2,80 @@
 
 Hola, Alosh here ✌🏻
 
-Short answer, from ~500 measured attack/length cells across four models: **no, not with any surface edit that keeps the text readable.** The one mechanical weakness I found dies to a single line of input normalization. The place the watermark is *actually* weak has nothing to do with attacks at all — it's low-entropy text like code, where the mark is thin by construction and no editing is needed.
+**Yes, but only one family of attack works, and it isn't the one everyone assumes.**
 
-So this repo is the opposite of what the meme at the bottom implies. It's a robustness study that mostly failed to break the thing, and the failures are the interesting part.
+Unicode **variation selectors** (category Mn, U+FE00 to U+FE0F and U+E0100 to U+E01EF) drive the detector below threshold and *stay* there. Every other invisible-character attack I tried gets fully reverted by one line of input normalization. Variation selectors don't, because they're meaningful codepoints (emoji presentation, CJK variants) that NFKC will not and should not fold away.
+
+Replicated on three models, two domains:
+
+| model | domain | baseline z | after `vs16_30` | edit rate |
+|---|---|---|---|---|
+| gpt-oss-20b | prose | 45.03 | **0.72** | 57% |
+| gpt-oss-20b | code | 37.24 | **0.68** | 58% |
+| Qwen3.8-27B | prose | 35.50 | **-0.67** | 57% |
+
+Threshold is z = 2.33. All three land under it, and stay under after normalization (0.09, 0.45, -0.78 respectively). Text renders identically to a human reader.
+
+The second real finding needs no attack at all: **low-entropy text is barely watermarked to begin with.** Qwen3.8-27B code generation has a clean baseline of z = 4.31, already near threshold with nothing done to it.
 
 ## what this is
 
-Anthropic (and Google DeepMind before them, the [SynthID-Text](https://www.nature.com/articles/s41586-024-08025-4) paper) watermark generated text by biasing token sampling with a keyed tournament. The signal lives in *which tokens got picked*, not in any hidden character. I wanted to know how fragile that is to a motivated person with a find-and-replace, so I built the generator + an untrained mean-g detector and threw attacks at it.
+Anthropic (and Google DeepMind before them, the [SynthID-Text](https://www.nature.com/articles/s41586-024-08025-4) paper) watermark generated text by biasing token sampling with a keyed tournament. The signal lives in *which tokens got picked*, not in any hidden character. I wanted to know how fragile that is to a motivated person with a find-and-replace, so I built the generator plus an untrained mean-g detector and threw attacks at it.
 
-Detector threshold is z = 2.33 (1% false positive rate). Above that = watermark detected. I generated watermarked text, attacked it, re-tokenized, and scored. Every results table carries a `roundtrip` control (unattacked watermarked text) so you can see the detector is actually working in that row — twice this study a bug made every z collapse to zero and the control is the only thing that caught it.
+Detector threshold is z = 2.33 (1% false positive rate). Above that = watermark detected. I generated watermarked text, attacked it, re-tokenized, and scored. Every results table carries a `roundtrip` control (unattacked watermarked text) so you can see the detector is actually working in that row. Twice this study a bug made every z collapse to zero, and the control is the only thing that caught it.
 
-## the thing I was actually worried about
+## scope of the attack: what actually works
 
-My starting fear was the boring one: that em-dashes and "and"→"&" and stripping markdown would just work, and the watermark would turn out to be security theater. A lot of people online assume exactly that.
+The attack surface splits cleanly by **Unicode category**, which turned out to be the whole story.
 
-It doesn't work. Here's the whole attack ladder on gpt-oss-20b, out to 32k tokens:
+**Works (category Mn, nonspacing marks):**
+
+| attack | what it does | edit rate | survives normalization? |
+|---|---|---|---|
+| `vs16_30` | variation selector after ~30% of chars | 57% | **yes** |
+| `vs16` | variation selector after ~10% of chars | 23% | **yes** (z 3.46) |
+| `vs_supp` | supplementary-plane selectors (U+E0100+) | 24% | **yes** (z 3.40) |
+| `homoglyph` | Cyrillic а for Latin a (category Ll) | 9% | **yes**, but weak effect |
+
+**Doesn't work (category Cf, format chars):**
+
+| attack | raw z | normalized z | verdict |
+|---|---|---|---|
+| `zwsp_30` | -0.09 | **35.68** | fully reverted |
+| `combo` | 0.92 | **35.68** | fully reverted |
+| `bidi` | 24.37 | **35.68** | fully reverted |
+| `nbsp` | 41.04 | 46.51 | barely moves it |
+
+Cf characters are pure formatting with no semantic content, so a normalizer can strip them wholesale and lose nothing. Mn variation selectors carry real meaning in emoji and CJK text, so blanket-stripping them would corrupt legitimate documents. That asymmetry is why one family is defensible and the other isn't.
+
+**The practical scope:** this needs roughly 20% or more of characters touched to push a strong baseline under threshold, but the inserted characters are invisible, so the text reads normally at any edit rate. It is verified visually identical, see [src/fidelity_check.py](src/fidelity_check.py). Four families insert only characters that render nothing; homoglyphs are the honest exception (font-dependent, not guaranteed invisible).
+
+## what doesn't work: the obvious stuff
+
+My starting fear was the boring one: that em-dashes and "and" to "&" and stripping markdown would just work, and the watermark would turn out to be security theater. A lot of people online assume exactly that.
+
+It doesn't work. The whole surface-edit ladder on gpt-oss-20b, out to 32k tokens:
 
 | attack | edit rate | z @ 1k | z @ 32k |
 |---|---|---|---|
 | roundtrip (control) | 0% | 25.7 | 104.3 |
-| em-dash → hyphen | ~0% | 26.4 | 113.7 |
+| em-dash to hyphen | ~0% | 26.4 | 113.7 |
 | strip **all** markdown | 13.6% | 27.2 | 103.3 |
-| AmE→BrE + abbreviations | 1.3% | ~28 | ~100 |
+| AmE to BrE + abbreviations | 1.3% | ~28 | ~100 |
 | delete 40% of every word | 38% | 4.9 | 25.4 |
 
-Across three models (0.8B, 4B, 20B = 294 cells), exactly **one** cell crossed threshold: deleting 39% of every word at the shortest length on the 4B. That's not an attack, that's shredding the document. Everything readable stays detected by a wide margin.
+Across three models (0.8B, 4B, 20B = 294 cells), exactly **one** cell crossed threshold: deleting 39% of every word at the shortest length on the 4B. That's not an attack, that's shredding the document.
 
 Two things surprised me:
 
-- **Edit *count* doesn't predict damage — edit *geometry* does.** Stripping all markdown (13.6% of tokens) did nothing; it even scored slightly *above* baseline. Injecting stray spaces at 1.6% did 25× more damage per edit. Markdown markers cluster, so their corruption windows overlap and the long prose runs between them keep replaying the watermark seed intact. Scattered edits that desync the tokenizer hit fresh windows every time.
-- **Length helps the detector, not the attacker.** z grows like √(tokens). "Fool it over a long context" is backwards — 32k is the hardest case to attack, not the easiest.
+- **Edit *count* doesn't predict damage, edit *geometry* does.** Stripping all markdown (13.6% of tokens) did nothing; it even scored slightly *above* baseline. Injecting stray spaces at 1.6% did 25x more damage per edit. Markdown markers cluster, so their corruption windows overlap and the long prose runs between them keep replaying the watermark seed intact. Scattered edits that desync the tokenizer hit fresh windows every time.
+- **Length helps the detector, not the attacker.** z grows like sqrt(tokens). "Fool it over a long context" is backwards, 32k is the hardest case to attack, not the easiest.
 
 Full mechanism and per-attack tables in [docs/FINDINGS.md](docs/FINDINGS.md).
 
-## the one real mechanical weakness (and why it doesn't count)
+## the finding that needs no attack
 
-The strongest attack that keeps text readable is **invisible-character injection** — zero-width spaces, non-breaking spaces, bidi controls. These shift where the BPE tokenizer puts its boundaries, which desyncs the seed chain. Raw, `zwsp` drives the 4B's z from 11.4 to **−0.7**. Undetectable.
-
-Then you run one line of normalization on the input — strip format-category chars, NFKC fold, collapse whitespace — and it snaps right back to 10.7. Every zero-width / nbsp / whitespace-shift attack fully recovers. I checked all of them raw *and* post-normalize; the gap is the whole point.
-
-**One survivor:** homoglyphs (Cyrillic а for Latin a). NFKC doesn't fold script-confusables, so z stays down (8.0 → 8.2 normalized). That's the single stego vector a standard normalizer misses, and the fix is a Unicode confusables map (UTS-39), not NFKC. If there's a defensive takeaway for whoever ships one of these detectors, it's: normalize format chars *and* keep a confusables skeleton, because NFKC alone leaves 2 of the families I tested open.
-
-Every attack here is verified visually identical to the original — see [src/fidelity_check.py](src/fidelity_check.py). Four families insert only Unicode format (Cf) chars that render nothing; homoglyphs are the honest exception (font-dependent, not guaranteed invisible).
-
-## the finding that actually matters
-
-The watermark rides on the model's per-token uncertainty. Where the model is confident about the next token, the tournament has no room to bias it, so no signal goes in. That means **the mark is weak on low-entropy text — and code is low-entropy.**
+The watermark rides on the model's per-token uncertainty. Where the model is confident about the next token, the tournament has no room to bias it, so no signal goes in. That means **the mark is weak on low-entropy text, and code is low-entropy.**
 
 Qwen3.5-4B, prose vs code, 512-token samples, no attack at all:
 
@@ -56,20 +84,42 @@ Qwen3.5-4B, prose vs code, 512-token samples, no attack at all:
 | prose | 1.19 bits/tok | 11.1 |
 | code | 0.55 bits/tok | 5.0 |
 
-z ratio 0.45×, entropy ratio 0.46× — they move together, which is the mechanism showing through. And **3 of 8 code samples fell to or below the detection threshold on their own.** The tightest one (a bare algorithm, 0.2 bits/token) scored 1.7 — a miss. No editing, no tricks, just ask for code.
+z ratio 0.45x, entropy ratio 0.46x, they move together, which is the mechanism showing through. **3 of 8 code samples fell to or below the detection threshold on their own.** The tightest one (a bare algorithm, 0.2 bits/token) scored 1.7, a miss.
 
-This is the part I'd lead with if I were reporting it, because it needs no adversary and no assumption that the detector is misconfigured. It says: a single confidence threshold across domains is unsafe, and short code snippets are close to unwatermarkable. Generalizes to JSON, config, structured extraction, boilerplate.
+It gets more extreme at scale. Baseline z with no attack whatsoever:
+
+| model | prose | code | ratio |
+|---|---|---|---|
+| gpt-oss-20b | 45.03 | 37.24 | 0.83 |
+| Qwen3.8-27B | 35.50 | **4.31** | **0.12** |
+
+Qwen3.8-27B's code output is so templated that the clean, unattacked watermark sits at z = 4.31, barely above the 2.33 threshold. No adversary required.
+
+It says: a single confidence threshold across domains is unsafe, and short code snippets are close to unwatermarkable. Generalizes to JSON, config, structured extraction, boilerplate.
+
+## defensive takeaway
+
+If you ship one of these detectors, normalizing input gets you most of the way, but not all of it:
+
+1. Strip Cf-category characters. Kills zero-width, bidi, and the combos. This is the big win.
+2. NFKC fold. Handles nbsp and compatibility forms.
+3. **Strip the variation selector ranges explicitly.** NFKC won't do it for you, and this is the gap that's currently open.
+4. Keep a Unicode confusables map (UTS-39) for homoglyphs. NFKC won't do that either.
+
+Steps 3 and 4 are the ones a naive normalizer misses.
 
 ## what's wrong with this / what I didn't get to
 
-Being honest about the gaps, grayswan-style.
+Being honest about the gaps.
 
-- **GLM-5.2 produced zero data.** I rented an 8×A100 pod for it and hit five infra failures in a row (deprecated download cmd, torch/torchvision ABI breaks, the model loading into host RAM instead of the GPUs), burned ~$25 including $19 on a pod that idled because I trusted a download that never started, and terminated it with nothing. Kimi-K3 never got attempted. The frontier-scale question is open.
-- **The entropy + stego experiments only ran on the 4B.** The 0.8B and 20B have the full attack ladder but not the code-vs-prose or invisible-char runs. So the entropy finding is one model, cleanly, not three.
+- **The 27B code numbers are uninformative as an attack result.** The unattacked baseline there is z = 4.31, so you can't demonstrate an attack beating a detector that's already nearly blind. I kept those rows but labelled them; the meaningful signal is the baseline, not the attack deltas.
+- **Whether the 27B code result is entropy or model style is unresolved.** It needs a per-token entropy measurement like the 4B got, which I didn't run for that model.
+- **GLM-5.2 produced zero data.** I rented an 8xA100 pod and hit five infra failures in a row (deprecated download cmd, torch/torchvision ABI breaks, the model loading into host RAM instead of the GPUs), burned ~$25 including $19 on a pod that idled because I trusted a download that never started, and terminated it with nothing. Kimi-K3 was never attempted; at ~1.5TB even quantized it needs 20+ A100s. The frontier-scale question is open.
+- **Three community quantized checkpoints of Qwen3.8-27B failed to load** (FP8 wanting a torch dtype we don't have, two AWQ/compressed-tensors repacks with packing mismatches). Ran it at bf16 on an H100 instead. If you're reproducing, skip the repacks.
 - **The detector is the untrained mean-g scorer, not the trained Bayesian one** from the paper. The Bayesian detector would likely be *more* sensitive, so these z values are a floor, but I didn't measure it.
 - **My homoglyph fidelity claim is "typical reader," not proven.** Cyrillic а is category Ll, so its invisibility is a font property, not a Unicode guarantee.
-- **n is small** — 2 documents per cell for the ladders, 8 samples per domain for entropy. Enough for the effect sizes here (they're large), not enough for tight per-attack error bars.
-- I don't provide a tuned evasion recipe and that's deliberate. The point was to measure where the frontier is, not to package a bypass.
+- **n is small**, 2 documents per cell for the ladders, 8 samples per domain for entropy. Enough for the effect sizes here (they're large), not enough for tight per-attack error bars.
+- I don't provide a tuned evasion recipe and that's deliberate. Every attack here is reported alongside the normalization result that does or doesn't defeat it. The point was to measure where the frontier is, not to package a bypass.
 
 ## layout
 
@@ -78,9 +128,9 @@ src/synthid_robustness.py   generator + attack ladder + mean-g detector + normal
 src/code_vs_prose.py        the entropy experiment (with per-token entropy tap)
 src/fidelity_check.py       proves the stego attacks are visually identical
 src/synthid_mlx.py          watermarking bridge for Apple Silicon (MLX), validated vs HF
-src/prompts_code.py         prose vs code prompt sets
+src/prompts_code.py         prose / code / mixed prompt sets
 src/build_report_data.py    assembles results/ into the tables in FINDINGS.md
-results/                    the JSON this is all computed from (0.8B, 4B, 20B, entropy, stego)
+results/                    the JSON this is all computed from
 docs/FINDINGS.md            every table, the defense hierarchy, the bugs I caught
 ```
 
@@ -99,19 +149,21 @@ MODEL=Qwen/Qwen3.5-4B LENGTHS=1024,2048,4096,8192 N_DOCS=2 \
 # the entropy experiment (code vs prose)
 python src/code_vs_prose.py --model Qwen/Qwen3.5-4B --out res_cvp_4b.json
 
-# the stego attacks, scored raw AND post-normalization
-ATTACK_SET=desync DEFENSE=1 SCORE_ONLY=1 MODEL=Qwen/Qwen3.5-4B \
+# the variation-selector / stego attacks, scored raw AND post-normalization
+ATTACK_SET=desync DEFENSE=1 PROMPT_SET=prose MODEL=Qwen/Qwen3.5-4B \
   DOCS=docs_4b.json OUT=res_defense.json python src/synthid_robustness.py
 ```
 
-Watermarking needs the full next-token distribution, so it runs through `transformers` (CUDA native MXFP4, or MPS/CPU). Ollama/llama.cpp can't do it — they don't expose logits mid-generation. On Apple Silicon, `src/synthid_mlx.py` bridges MLX generation into the watermark math; it's validated bit-identical to the HF reference.
+`PROMPT_SET` takes `prose`, `code`, or `mixed`. `FAST_WM=1` uses a numpy watermark bridge (faster on small-vocab models with a strong CPU), `FAST_WM=0` uses HF's GPU processor (much faster on big-vocab models; on an H100 this was the difference between 0% and 46% GPU utilisation).
+
+Watermarking needs the full next-token distribution, so it runs through `transformers` (CUDA native MXFP4, or MPS/CPU). Ollama and llama.cpp can't do it, they don't expose logits mid-generation. On Apple Silicon, `src/synthid_mlx.py` bridges MLX generation into the watermark math; it's validated bit-identical to the HF reference.
 
 ---
 
 ![the dream, allegedly](assets/dewatermarked.png)
 
-*(the meme that started it. the study says the bill is still watermarked.)*
+*(the meme that started it. turns out you need variation selectors, not a find-and-replace.)*
 
 ---
 
-Note: I used Claude Code heavily for the implementation and to rerun experiments across three machines (a Mac, a rented 3090, my own 4090). The experiment design, the attacks I wanted tried, and the calls on framing are mine. Claude also, for what it's worth, kept refusing to tune the attacks into an actual working bypass and insisted on measuring every attack against its own defense — which is why the stego section has a raw *and* a normalized column instead of just the raw one.
+Note: I used Claude Code heavily for the implementation and to rerun experiments across four machines (a Mac, my own 4090, a rented 3090, and an H100). The experiment design, the attacks I wanted tried, and the calls on framing are mine. Claude insisted on measuring every attack against its own defense, which is why the stego tables have a raw *and* a normalized column instead of just the raw one; that's what turned "invisible characters break it" into the actual finding, which is that only the Mn-category ones survive a normalizer.
