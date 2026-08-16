@@ -137,3 +137,32 @@ The intuitive choice (level 1) leaves 3 of 4 families viable. A shipped detector
 
 - **Device-dependent sampling table:** HF seeds `torch.randint` on the compute device; MPS/CUDA/CPU tables agree only ~50%, so docs made on one device are unscorable on another. Caught by the roundtrip control reading z≈0. Fixed with a canonical CPU-seeded table. All numbers here use it.
 - **Null-estimation shadowing:** a nested loop variable collapsed 16 null keysets to 1 (sd≈0, z→millions). Caught by implausible magnitude. Fixed.
+
+## 6 — variation selectors (Mn category), gpt-oss-20b, prose + code @ 8192 tok
+
+Same raw/normalized pairing as section 3, extended with Unicode variation
+selectors (U+FE00-FE0F basic plane, U+E0100-E01EF supplementary plane) --
+category **Mn** (nonspacing mark), a different Unicode class from the Cf
+(format) chars our normalizer strips. Tests whether that's a real gap.
+
+| attack | domain | z_raw | z_norm | edit% |
+|---|---|---|---|---|
+| roundtrip | prose | 45.03 | 46.51 | 0.0 |
+| roundtrip | code | 37.24 | 30.58 | 0.0 |
+| zwsp_30 (control, known-defended) | prose | 0.27 | 46.51 | 57.1 |
+| homoglyph (known survivor) | prose | 25.75 | 23.77 | 9.0 |
+| **vs16_30** | prose | **0.72** | **0.09** | 57.2 |
+| **vs16_30** | code | **0.68** | **0.45** | 57.9 |
+| vs_supp | code | 2.67 | **1.67** | 22.0 |
+
+**vs16_30 is the first attack all study to cross threshold (z<2.33) both raw
+AND after normalization, on both domains.** Unlike zwsp/nbsp/bidi -- which
+our normalizer fully reverts to baseline -- variation selectors are meaningful
+Unicode codepoints (CJK ideograph variants, emoji presentation selectors),
+so NFKC will not and should not fold them away. Closing this gap needs an
+explicit strip of the VS ranges, the same class of fix as the Cf-strip we
+already do, just a different code-point block.
+
+Code domain again confirms the entropy finding independently: `code` baseline
+z is lower than `prose` (37.2 vs 45.0) with no attack, consistent with the
+weaker per-token watermark signal on structured/low-entropy generation.
