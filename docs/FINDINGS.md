@@ -166,3 +166,46 @@ already do, just a different code-point block.
 Code domain again confirms the entropy finding independently: `code` baseline
 z is lower than `prose` (37.2 vs 45.0) with no attack, consistent with the
 weaker per-token watermark signal on structured/low-entropy generation.
+
+## 7 — Qwen3.8-27B (bf16, H100), prose + code @ 8192 tok
+
+Third model for the variation-selector test. Run on a single H100 at bf16 (no
+quantization) after three community quantized checkpoints failed to load
+(FP8 needed a torch dtype we don't have; two AWQ/compressed-tensors repacks
+had packing-format mismatches).
+
+### prose (baseline z = 35.50)
+
+| attack | z_raw | z_norm | edit% |
+|---|---|---|---|
+| roundtrip | 35.50 | 35.68 | 0.0 |
+| zwsp_30 | -0.09 | **35.68** | 61.3 |
+| combo | 0.92 | **35.68** | 46.6 |
+| homoglyph | 17.42 | 17.61 | 8.7 |
+| **vs16_30** | **-0.67** | **-0.78** | 56.9 |
+| vs16 | 3.46 | 3.45 | 23.3 |
+| vs_supp | 3.55 | 3.40 | 24.0 |
+
+Replicates the section-6 result on a third model: Cf-category attacks
+(zwsp, combo) fully revert to baseline under normalization, while Mn-category
+variation selectors stay below threshold both raw and normalized.
+
+### code (baseline z = 4.31) -- NOT a valid attack surface
+
+**The unattacked control is already z=4.31, barely above the 2.33 threshold.**
+Attack rows in this domain are therefore uninformative -- you cannot show an
+attack defeating a detector that is already near-blind on the clean text. The
+meaningful result here is the *baseline itself*:
+
+| model | prose baseline z | code baseline z | ratio |
+|---|---|---|---|
+| gpt-oss-20b | 45.03 | 37.24 | 0.83 |
+| Qwen3.8-27B | 35.50 | **4.31** | **0.12** |
+
+This is the strongest entropy-effect observation in the study. Qwen3.8-27B's
+code generation is so low-entropy that the watermark is nearly undetectable
+with no adversary involved at all. Whether this is an entropy effect alone or
+partly an artifact of this model's code-generation style (very templated
+output, high token predictability) is not something these two documents can
+separate -- it needs a per-token entropy measurement like section 2, which
+was not run for this model.
