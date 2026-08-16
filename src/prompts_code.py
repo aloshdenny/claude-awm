@@ -20,3 +20,15 @@ CODE = [
     "Write a Python function to parse a CSV file into a list of dicts, handling quoted fields.",
     "Implement Dijkstra's shortest-path algorithm in Python using a heap.",
 ]
+# Mixed prose+code: explanatory writing with an embedded ```fenced``` example,
+# so watermark signal spans both a high- and low-entropy region in one doc.
+MIXED = [
+    "Explain how binary search works, then show a Python implementation.",
+    "Describe what a hash table is and why lookups are O(1), with a small Python example.",
+    "Explain memoization and give a Python example using it on Fibonacci.",
+    "Describe how a queue differs from a stack, then implement both in Python.",
+    "Explain what a race condition is, then show a Python example using a lock to prevent one.",
+    "Describe how recursion works and show a recursive Python function for factorial.",
+    "Explain what Big-O notation measures, then show two Python sort implementations of different complexity.",
+    "Describe how a decorator works in Python, then write one that times a function.",
+]

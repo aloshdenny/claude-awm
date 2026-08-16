@@ -132,6 +132,32 @@ PROMPTS = [
     "Describe how migratory birds navigate.",
 ]
 
+# PROMPT_SET=code switches generation to the low-entropy code domain.
+CODE_PROMPTS = [
+    "Write a Python function to merge two sorted lists. Include type hints and a docstring.",
+    "Implement binary search in Python with full error handling.",
+    "Write a Python class for a thread-safe LRU cache.",
+    "Implement quicksort in Python with comments explaining each step.",
+    "Write a Python decorator that retries a function on exception with backoff.",
+    "Implement a linked list in Python with insert, delete, and reverse methods.",
+    "Write a Python function to parse a CSV file into a list of dicts, handling quoted fields.",
+    "Implement Dijkstra's shortest-path algorithm in Python using a heap.",
+]
+# PROMPT_SET=mixed: prose explanation + an embedded ```fenced``` code example,
+# so the doc spans both entropy regimes in one generation.
+MIXED_PROMPTS = [
+    "Explain how binary search works, then show a Python implementation.",
+    "Describe what a hash table is and why lookups are O(1), with a small Python example.",
+    "Explain memoization and give a Python example using it on Fibonacci.",
+    "Describe how a queue differs from a stack, then implement both in Python.",
+    "Explain what a race condition is, then show a Python example using a lock to prevent one.",
+    "Describe how recursion works and show a recursive Python function for factorial.",
+    "Explain what Big-O notation measures, then show two Python sort implementations of different complexity.",
+    "Describe how a decorator works in Python, then write one that times a function.",
+]
+_PS = os.environ.get("PROMPT_SET", "prose")
+_PROMPTS = {"code": CODE_PROMPTS, "mixed": MIXED_PROMPTS}.get(_PS, PROMPTS)
+
 # ---------------------------------------------------------------- attacks ---
 def a_none(t):    return t
 def a_dash(t):    return t.replace("—", "-").replace("–", "-")
@@ -257,6 +283,42 @@ def a_wordshift(t, p=0.15, seed=28):
     """Widen ~p of inter-word gaps to double space (word-shift stego)."""
     r = random.Random(seed)
     return re.sub(r"(?<=\w) (?=\w)", lambda m: "  " if r.random() < p else " ", t)
+
+# ---- Unicode variation selectors (category Mn, NOT Cf) ------------------
+# VS1-16 (U+FE00-FE0F) render nothing attached to ordinary text; VS17-256
+# (U+E0100-E01EF, supplementary plane) are the "invisible ASCII smuggling"
+# range popularised for hiding payloads in emoji. Both are category Mn
+# (nonspacing mark), a DIFFERENT class from the Cf (format) chars our
+# normalize() strips -- so this tests whether that normalizer has a real gap,
+# the same way homoglyphs (Ll) turned out to survive it.
+VS_BASIC = [chr(0xFE00 + i) for i in range(16)]        # VS1-16
+VS_SUPP = [chr(0xE0100 + i) for i in range(240)]        # VS17-256
+
+def a_vs16(t, p=0.10, seed=29):
+    """Insert a basic-plane variation selector after ~p of characters."""
+    r = random.Random(seed)
+    out = []
+    for ch in t:
+        out.append(ch)
+        if ch not in "\n\t " and r.random() < p:
+            out.append(r.choice(VS_BASIC))
+    return "".join(out)
+
+def a_vs_supp(t, p=0.10, seed=30):
+    """Insert a supplementary-plane variation selector (the 'emoji smuggling'
+    range) after ~p of characters -- higher-entropy channel, same category."""
+    r = random.Random(seed)
+    out = []
+    for ch in t:
+        out.append(ch)
+        if ch not in "\n\t " and r.random() < p:
+            out.append(r.choice(VS_SUPP))
+    return "".join(out)
+
+def a_vs_word(t, p=0.5, seed=31):
+    """One variation selector per word boundary instead of per char."""
+    r = random.Random(seed)
+    return re.sub(r"(\w+)", lambda m: m.group(1) + (r.choice(VS_BASIC) if r.random() < p else ""), t)
 
 # ---- code-specific ----
 def a_code_indent(t, p=0.3, seed=25):
@@ -407,8 +469,34 @@ DESYNC_ATTACKS = [
     ("homoglyph", a_homoglyph),                  # Cyrillic/Greek lookalikes
     ("lineshift", a_lineshift),                  # trailing-space stego
     ("wordshift", a_wordshift),                  # inter-word double-space stego
+    ("vs16",      lambda t: a_vs16(t, 0.10)),     # variation selectors, basic plane
+    ("vs16_30",   lambda t: a_vs16(t, 0.30)),
+    ("vs_supp",   lambda t: a_vs_supp(t, 0.10)),  # variation selectors, supplementary plane
+    ("vs_word",   a_vs_word),                     # one per word instead of per char
     ("combo",     lambda t: a_zwsp(a_nbsp(a_bidi(t)), 0.15)),
 ]
+
+CODE_FENCE_RE = re.compile(r"```.*?```", re.S)
+
+def apply_code_aware(attack_fn, text):
+    """Apply attack_fn only OUTSIDE ``` fenced code blocks, leaving code spans
+    untouched -- for measuring attacks on mixed prose+code documents where
+    the code portion is the low-entropy region we already showed is weakly
+    watermarked on its own."""
+    parts = CODE_FENCE_RE.split(text)
+    fences = CODE_FENCE_RE.findall(text)
+    out = []
+    for i, p in enumerate(parts):
+        out.append(attack_fn(p))
+        if i < len(fences):
+            out.append(fences[i])
+    return "".join(out)
+
+def apply_code_only(attack_fn, text):
+    """Inverse: attack ONLY inside ``` fenced code blocks."""
+    def rep(m):
+        return attack_fn(m.group(0)[3:-3])
+    return CODE_FENCE_RE.sub(lambda m: "```" + attack_fn(m.group(0)[3:-3]) + "```", text)
 
 # ws_add and code_indent are visible edits (they change layout a reader sees),
 # so they're excluded from the "invisible stego" set above. Keep them available:
@@ -425,7 +513,16 @@ def build_model():
     tok.padding_side = "left"
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
-    model = AutoModelForCausalLM.from_pretrained(MODEL, dtype=torch.bfloat16).to(DEVICE).eval()
+    # device_map="auto" streams weights straight to GPU shard-by-shard instead
+    # of staging the full model in host RAM first (that OOM-killed a 40GB
+    # gpt-oss-20b load under WSL's 30GB memory cap).
+    if DEVICE == "cuda":
+        # device_map="auto" can partially offload experts to CPU under memory
+        # uncertainty, which looked like nonzero-but-crawling GPU util with no
+        # progress. Pin everything to the single GPU explicitly instead.
+        model = AutoModelForCausalLM.from_pretrained(MODEL, device_map={"": 0}, dtype="auto").eval()
+    else:
+        model = AutoModelForCausalLM.from_pretrained(MODEL, dtype=torch.bfloat16).to(DEVICE).eval()
     return tok, model
 
 def render(tok, p):
@@ -481,7 +578,7 @@ def build_docs(tok, model):
     while len(docs) < N_DOCS:
         stream, i = [], len(docs) * 977
         while len(stream) < TARGET:
-            batch = [PROMPTS[(i + k) % len(PROMPTS)] for k in range(BATCH)]
+            batch = [_PROMPTS[(i + k) % len(_PROMPTS)] for k in range(BATCH)]
             i += BATCH
             for r in gen_batch(tok, model, batch, cfg):
                 stream.extend(r)

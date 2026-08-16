@@ -13,3 +13,5 @@ __pycache__/
 # scratch
 smoke*.json
 res_smoke*.json
+push_paced.sh
+push_paced.log
