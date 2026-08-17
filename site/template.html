@@ -1,0 +1,497 @@
+<title>Invisible Ink</title>
+<style>
+/* ===== theme: true black default, true white toggle ===== */
+:root {
+  --bg: #000000;
+  --surface: #0a0a0a;
+  --surface-2: #111111;
+  --ink: #ffffff;
+  --ink-soft: #a0a0a0;
+  --ink-faint: #6a6a6a;
+  --rule: #1e1e1e;
+  --rule-strong: #333333;
+  --uv: #a78bfa;
+  --uv-strong: #c4b5fd;
+  --uv-wash: #16121f;
+  --flag: #f0a850;
+  --flag-wash: #1a1206;
+  --clear: #5ec7a0;
+  --clear-wash: #06160f;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+  --radius: 4px;
+}
+:root[data-theme="light"] {
+  --bg: #ffffff;
+  --surface: #f7f7f7;
+  --surface-2: #ffffff;
+  --ink: #000000;
+  --ink-soft: #52525b;
+  --ink-faint: #8a8a8f;
+  --rule: #e6e6e6;
+  --rule-strong: #cccccc;
+  --uv: #6d45e0;
+  --uv-strong: #5629d0;
+  --uv-wash: #f1ecfd;
+  --flag: #a8671a;
+  --flag-wash: #f8efe0;
+  --clear: #2f7d5f;
+  --clear-wash: #e6f2ec;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+::selection { background: var(--uv-wash); color: var(--ink); }
+a { color: var(--uv-strong); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--uv); outline-offset: 2px;
+}
+
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 28px; }
+.prose-col { max-width: 680px; }
+
+/* ===== theme toggle ===== */
+.theme-toggle {
+  position: absolute; top: 24px; right: 28px;
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em;
+  color: var(--ink-faint); background: var(--surface); border: 1px solid var(--rule-strong);
+  border-radius: 100px; padding: 5px 12px; cursor: pointer;
+}
+.theme-toggle:hover { color: var(--ink); border-color: var(--uv); }
+.theme-toggle .sw { width: 26px; height: 14px; border-radius: 100px; background: var(--rule-strong); position: relative; transition: background 0.2s; }
+.theme-toggle .sw::after { content:""; position:absolute; top:2px; left:2px; width:10px; height:10px; border-radius:50%; background: var(--uv); transition: transform 0.2s; }
+:root[data-theme="light"] .theme-toggle .sw::after { transform: translateX(12px); }
+
+/* ===== masthead ===== */
+header.masthead { position: relative; padding: 72px 0 44px; border-bottom: 1px solid var(--rule); }
+.eyebrow {
+  font-family: var(--mono); font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--uv-strong); display: flex; align-items: center; gap: 8px; margin-bottom: 20px;
+}
+.eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--uv); box-shadow: 0 0 8px var(--uv); }
+h1.title {
+  font-family: var(--sans); font-weight: 700; font-size: clamp(34px, 5.4vw, 58px);
+  letter-spacing: -0.03em; line-height: 1.02; margin: 0 0 22px; text-wrap: balance; max-width: 15ch;
+}
+h1.title .glow { color: var(--uv-strong); }
+p.lede { font-size: 19px; line-height: 1.55; color: var(--ink-soft); max-width: 60ch; margin: 0 0 24px; }
+p.lede strong { color: var(--ink); font-weight: 600; }
+.masthead-links { display: flex; gap: 22px; flex-wrap: wrap; font-family: var(--mono); font-size: 13px; }
+.masthead-links a { color: var(--ink-soft); }
+.masthead-links a:hover { color: var(--uv-strong); }
+
+/* ===== notice ===== */
+.notice {
+  margin: 34px 0; padding: 17px 19px; border: 1px solid var(--rule-strong); border-left: 3px solid var(--uv);
+  background: var(--surface); border-radius: var(--radius);
+  font-family: var(--mono); font-size: 13px; line-height: 1.7; color: var(--ink-soft);
+}
+.notice b { color: var(--ink); font-weight: 600; }
+
+/* ===== sections ===== */
+section { padding: 60px 0; border-bottom: 1px solid var(--rule); }
+section:last-of-type { border-bottom: none; }
+.section-head { margin-bottom: 30px; }
+.section-label { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 9px; }
+h2 { font-family: var(--sans); font-weight: 700; font-size: 28px; letter-spacing: -0.02em; margin: 0 0 11px; text-wrap: balance; }
+.section-desc { color: var(--ink-soft); max-width: 66ch; font-size: 16px; }
+.mono-inline { font-family: var(--mono); font-size: 0.9em; background: var(--uv-wash); color: var(--uv-strong); padding: 1px 6px; border-radius: 3px; }
+
+/* ===== mechanism viz ===== */
+.viz { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.viz-tabs { display: flex; gap: 8px; padding: 16px 18px 0; }
+.viz-tab {
+  font-family: var(--mono); font-size: 12px; padding: 8px 14px; border-radius: var(--radius) var(--radius) 0 0;
+  border: 1px solid var(--rule); border-bottom: none; background: transparent; color: var(--ink-faint); cursor: pointer;
+}
+.viz-tab.active { background: var(--surface-2); color: var(--ink); border-color: var(--rule-strong); }
+.viz-body { padding: 20px 18px; border-top: 1px solid var(--rule); }
+.viz-row-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 11px; }
+.tok-strip { display: flex; flex-wrap: wrap; gap: 5px; align-items: flex-start; margin-bottom: 26px; }
+.tok { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.tok .lex { font-family: var(--mono); font-size: 13px; padding: 4px 8px; border-radius: 3px; background: var(--uv-wash); color: var(--uv-strong); white-space: nowrap; }
+.tok.broken .lex { background: var(--flag-wash); color: var(--flag); }
+.tok .seed { font-family: var(--mono); font-size: 9.5px; padding: 1px 5px; border-radius: 3px; }
+.tok .seed.ok { background: var(--clear-wash); color: var(--clear); }
+.tok .seed.bad { background: var(--flag-wash); color: var(--flag); }
+.tok.insert .lex { background: var(--uv-wash); color: var(--uv); border: 1px dashed var(--uv); }
+.gbars { display: flex; gap: 3px; align-items: flex-end; height: 64px; }
+.gbar { flex: 1; min-width: 4px; border-radius: 2px 2px 0 0; background: var(--uv); transition: height 0.3s ease, background 0.3s ease; }
+.gbar.noise { background: var(--rule-strong); }
+.gbar-mid { height: 1px; background: var(--rule-strong); margin: 6px 0 4px; position: relative; }
+.gbar-mid::after { content: "g = 0.5 (chance)"; position: absolute; right: 0; top: -14px; font-family: var(--mono); font-size: 9.5px; color: var(--ink-faint); }
+.gstat { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; color: var(--ink-soft); margin-top: 8px; }
+.gstat b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.viz-verdict { padding: 14px 18px; border-top: 1px solid var(--rule); font-size: 14px; line-height: 1.6; font-family: var(--mono); }
+.viz-verdict.wm { background: var(--clear-wash); color: var(--clear); }
+.viz-verdict.no { background: var(--flag-wash); color: var(--flag); }
+.viz-verdict b { font-weight: 700; }
+
+/* ===== sample cards ===== */
+.sample-grid { display: grid; gap: 22px; }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; }
+.card-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--rule); font-family: var(--mono); font-size: 13px; }
+.card-head .domain { font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; font-size: 12px; }
+.card-head .meta { color: var(--ink-faint); }
+.card-body { display: grid; grid-template-columns: 1fr 1fr; }
+@media (max-width: 760px) { .card-body { grid-template-columns: 1fr; } }
+.pane { padding: 18px; }
+.pane + .pane { border-left: 1px solid var(--rule); }
+@media (max-width: 760px) { .pane + .pane { border-left: none; border-top: 1px solid var(--rule); } }
+.pane-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.textblock { font-family: var(--mono); font-size: 13px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow-y: auto; }
+.textblock mark { background: none; color: inherit; }
+.vs-mark { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--uv); vertical-align: super; margin: 0 0.5px; }
+.reveal-toggle { display: inline-flex; border: 1px solid var(--rule-strong); border-radius: var(--radius); overflow: hidden; font-family: var(--mono); font-size: 11px; }
+.reveal-toggle button { border: none; background: var(--surface); color: var(--ink-soft); padding: 3px 9px; cursor: pointer; font-family: inherit; font-size: inherit; }
+.reveal-toggle button.active { background: var(--uv-wash); color: var(--uv-strong); font-weight: 600; }
+.stat-row { display: flex; gap: 10px; padding: 14px 18px; border-top: 1px solid var(--rule); flex-wrap: wrap; }
+.chip { font-family: var(--mono); font-size: 12px; padding: 5px 10px; border-radius: var(--radius); border: 1px solid var(--rule-strong); display: flex; align-items: baseline; gap: 6px; font-variant-numeric: tabular-nums; }
+.chip .k { color: var(--ink-faint); }
+.chip .v { color: var(--ink); font-weight: 600; }
+.chip.flag { background: var(--flag-wash); border-color: transparent; }
+.chip.flag .v { color: var(--flag); }
+.chip.clear { background: var(--clear-wash); border-color: transparent; }
+.chip.clear .v { color: var(--clear); }
+
+/* ===== playground ===== */
+.playground { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+@media (max-width: 860px) { .playground { grid-template-columns: 1fr; } }
+textarea#input-text { width: 100%; min-height: 220px; resize: vertical; font-family: var(--mono); font-size: 13px; line-height: 1.65; padding: 14px; border: 1px solid var(--rule-strong); border-radius: var(--radius); background: var(--surface); color: var(--ink); }
+.sample-btns { display: flex; gap: 8px; margin: 12px 0 4px; flex-wrap: wrap; }
+.btn { font-family: var(--mono); font-size: 12.5px; padding: 7px 13px; border-radius: var(--radius); border: 1px solid var(--rule-strong); background: var(--surface); color: var(--ink-soft); cursor: pointer; }
+.btn:hover { border-color: var(--uv); color: var(--uv-strong); }
+.btn.primary { background: var(--uv); border-color: var(--uv); color: #000; font-weight: 600; }
+.btn.primary:hover { background: var(--uv-strong); }
+.output-empty { height: 100%; min-height: 220px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--rule-strong); border-radius: var(--radius); color: var(--ink-faint); font-family: var(--mono); font-size: 13px; text-align: center; padding: 20px; }
+.output-panel { display: none; }
+.output-panel.show { display: block; }
+
+/* ===== methodology ===== */
+.methodology p { margin: 0 0 16px; }
+.methodology h3 { font-family: var(--sans); font-weight: 700; font-size: 17px; margin: 30px 0 10px; letter-spacing: -0.01em; }
+.methodology ul { padding-left: 20px; margin: 0 0 16px; }
+.methodology li { margin-bottom: 8px; }
+table.findings { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 13px; margin: 18px 0; }
+table.findings th, table.findings td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
+table.findings th { color: var(--ink-faint); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+table.findings tr:last-child td { border-bottom: none; }
+.table-wrap { overflow-x: auto; }
+
+footer { padding: 40px 0 64px; font-family: var(--mono); font-size: 12.5px; color: var(--ink-faint); }
+footer a { color: var(--ink-soft); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light and dark theme">
+    <span class="sw"></span><span id="theme-label">lights off</span>
+  </button>
+
+  <header class="masthead">
+    <div class="eyebrow"><span class="dot"></span>claude-awm / interactive companion</div>
+    <h1 class="title">Invisible <span class="glow">ink</span>, revealed under UV</h1>
+    <p class="lede">SynthID-style text watermarks survived almost every edit we tried. All but one. <strong>Unicode variation selectors</strong> desync the detector's context chain, and unlike zero-width spaces or bidi controls, no standard normalizer strips them away.</p>
+    <div class="masthead-links">
+      <a href="https://github.com/aloshdenny/claude-awm" target="_blank" rel="noopener">github.com/aloshdenny/claude-awm</a>
+      <a href="https://github.com/aloshdenny/claude-awm/blob/main/docs/FINDINGS.md" target="_blank" rel="noopener">full findings</a>
+    </div>
+  </header>
+
+  <div class="notice">
+    <b>What this can and can't do.</b> Detecting a watermark requires the exact key it was generated with. Nobody outside Anthropic has that key, so this page cannot tell you whether text really came from Claude. What it does instead is faithfully reproduce the mechanism from our study: mark text with our own research key, detect it, attack it, and watch the detector's confidence collapse. Every number and bar below is real, unedited output from that pipeline.
+  </div>
+
+  <section id="how">
+    <div class="section-head">
+      <div class="section-label">01 / the mechanism</div>
+      <h2>Why one invisible character breaks everything after it</h2>
+      <p class="section-desc">The watermark biases token sampling using a seed derived from the previous few tokens. The detector re-derives that seed to check each token. Insert one invisible codepoint and the tokenizer re-splits the stream, so every seed from that point on is computed from the wrong context. These bars are real per-token g-values from the study data.</p>
+    </div>
+    <div class="viz" id="viz">
+      <div class="viz-tabs">
+        <button class="viz-tab active" data-state="clean">1 / watermarked</button>
+        <button class="viz-tab" data-state="attacked">2 / after insertion</button>
+      </div>
+      <div class="viz-body">
+        <div class="viz-row-label">token stream</div>
+        <div class="tok-strip" id="viz-tokens"></div>
+        <div class="viz-row-label">detector reads a g-value per token</div>
+        <div class="gbars" id="viz-bars"></div>
+        <div class="gbar-mid"></div>
+        <div class="gstat"><span id="viz-gnote"></span><span>mean g = <b id="viz-gmean"></b></span></div>
+      </div>
+      <div class="viz-verdict" id="viz-verdict"></div>
+    </div>
+  </section>
+
+  <section id="samples">
+    <div class="section-head">
+      <div class="section-label">02 / real study data</div>
+      <h2>Three documents, watermarked and attacked</h2>
+      <p class="section-desc">Generated locally with Qwen3.5-0.8B under our research key, scored with the paper's mean-g detector (threshold z = 2.33), then hit with the <span class="mono-inline">vs16</span> attack: a variation selector inserted after roughly 30% of characters.</p>
+    </div>
+    <div class="sample-grid" id="sample-grid"></div>
+  </section>
+
+  <section id="playground">
+    <div class="section-head">
+      <div class="section-label">03 / try it yourself</div>
+      <h2>Paste anything: prose, code, or both</h2>
+      <p class="section-desc">This box applies the real attack transform, ported line for line from <span class="mono-inline">src/synthid_robustness.py</span>, to whatever you paste. It deliberately shows no detection score, because scoring only means something against the generation-time key. For real before/after numbers, see the three study samples above.</p>
+    </div>
+    <div class="playground">
+      <div>
+        <div class="pane-label"><span>Input</span></div>
+        <textarea id="input-text" placeholder="Paste prose, code, or a mix of both&#10;&#10;def fib(n):&#10;    return n if n < 2 else fib(n-1) + fib(n-2)"></textarea>
+        <div class="sample-btns">
+          <button class="btn" data-fill="prose">use prose sample</button>
+          <button class="btn" data-fill="code">use code sample</button>
+          <button class="btn" data-fill="mixed">use mixed sample</button>
+        </div>
+        <div class="sample-btns">
+          <button class="btn primary" id="run-attack">apply variation-selector attack</button>
+        </div>
+      </div>
+      <div>
+        <div class="pane-label">
+          <span>Output</span>
+          <div class="reveal-toggle" id="pg-toggle">
+            <button data-mode="reader" class="active">as a reader sees it</button>
+            <button data-mode="annotated">annotated</button>
+          </div>
+        </div>
+        <div class="output-empty" id="pg-empty">Paste text and apply the attack to see the result here.</div>
+        <div class="output-panel" id="pg-output"><div class="textblock" id="pg-text"></div></div>
+        <div class="stat-row" id="pg-stats" style="display:none;"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="methodology">
+    <div class="section-head">
+      <div class="section-label">04 / the finding</div>
+      <h2>Why variation selectors are the one that works</h2>
+    </div>
+    <div class="prose-col">
+      <p>Across roughly 500 measured attack and length cells on three models, surface edits (markdown stripping, dialect swaps, whitespace changes) left the watermark intact. The one edit that visibly damages the signal, injecting invisible characters, gets fully reverted by a single line of input normalization. Except for one Unicode category.</p>
+      <div class="table-wrap">
+      <table class="findings">
+        <tr><th>attack</th><th>category</th><th>survives normalization?</th></tr>
+        <tr><td>zero-width space</td><td>Cf (format)</td><td>no, fully reverts</td></tr>
+        <tr><td>bidi override</td><td>Cf (format)</td><td>no, fully reverts</td></tr>
+        <tr><td>non-breaking space</td><td>Cf (format)</td><td>no, fully reverts</td></tr>
+        <tr><td><b>variation selector</b></td><td><b>Mn (mark)</b></td><td><b>yes</b></td></tr>
+        <tr><td>homoglyph</td><td>Ll (letter)</td><td>yes, but weak effect</td></tr>
+      </table>
+      </div>
+      <h3>The asymmetry is the whole point</h3>
+      <p>Cf-category characters are pure formatting with no semantic content, so a normalizer can strip them wholesale and lose nothing. Variation selectors carry real meaning. They pick emoji presentation and CJK ideograph variants, so a normalizer that blanket-strips them would corrupt legitimate text. It's not that nobody thought to defend against this. It's that the defense has a real cost.</p>
+      <h3>Where the mark is naturally weak</h3>
+      <p>Watermark strength tracks the model's per-token uncertainty. Low-entropy generation (code, JSON, anything templated) leaves the tournament little room to bias a choice, so the signal is thin by construction. We measured code baselines as low as z = 4.31 with no attack applied, barely above the detection threshold.</p>
+      <p style="margin-top:30px;"><a href="https://github.com/aloshdenny/claude-awm/blob/main/docs/FINDINGS.md">Every table, every model, every caveat is in FINDINGS.md.</a></p>
+    </div>
+  </section>
+
+  <footer>
+    <div>Built for <a href="https://github.com/aloshdenny/claude-awm" target="_blank" rel="noopener">claude-awm</a>, a robustness study of SynthID-style text watermarking. Not affiliated with Anthropic or Google DeepMind.</div>
+  </footer>
+</div>
+
+<script>
+const SAMPLES = __SAMPLES_JSON__;
+const THRESHOLD = 2.33;
+
+/* ---------- theme toggle ---------- */
+const themeBtn = document.getElementById('theme-toggle');
+const themeLabel = document.getElementById('theme-label');
+themeBtn.addEventListener('click', () => {
+  const light = document.documentElement.getAttribute('data-theme') === 'light';
+  if (light) { document.documentElement.removeAttribute('data-theme'); themeLabel.textContent = 'lights off'; }
+  else { document.documentElement.setAttribute('data-theme', 'light'); themeLabel.textContent = 'lights on'; }
+});
+
+/* ---------- mechanism viz (real g-values) ---------- */
+const VIZ_N = 12;
+const vizClean = SAMPLES.prose.spans.filter(s => s.g !== null).slice(6, 6 + VIZ_N).map(s => s.g);
+const vizAttacked = SAMPLES.prose.attacked_spans.filter(s => s.g !== null).slice(6, 6 + VIZ_N).map(s => s.g);
+const vizWords = SAMPLES.prose.text.split(/\s+/).slice(6, 6 + VIZ_N);
+
+function renderViz(state) {
+  const attacked = state === 'attacked';
+  const gs = attacked ? vizAttacked : vizClean;
+  const words = vizWords;
+  const insertAt = 4;
+
+  let toks = '';
+  words.forEach((w, i) => {
+    const broken = attacked && i >= insertAt;
+    toks += `<div class="tok${broken ? ' broken' : ''}"><span class="lex">${escapeHtml(w.slice(0, 9))}</span><span class="seed ${broken ? 'bad' : 'ok'}">seed ${broken ? '✗' : '✓'}</span></div>`;
+    if (attacked && i === insertAt - 1) {
+      toks += `<div class="tok insert"><span class="lex">U+FE01</span><span class="seed bad">inserted</span></div>`;
+    }
+  });
+  document.getElementById('viz-tokens').innerHTML = toks;
+
+  let bars = '';
+  gs.forEach(g => {
+    const h = Math.max(3, Math.round(g * 64));
+    bars += `<div class="gbar${attacked ? ' noise' : ''}" style="height:${h}px"></div>`;
+  });
+  document.getElementById('viz-bars').innerHTML = bars;
+
+  const mean = gs.reduce((a, b) => a + b, 0) / gs.length;
+  document.getElementById('viz-gmean').textContent = mean.toFixed(2);
+  document.getElementById('viz-gnote').textContent = attacked ? 'noise, no correlation with the key' : 'clear bias toward high g';
+
+  const v = document.getElementById('viz-verdict');
+  v.className = 'viz-verdict ' + (attacked ? 'no' : 'wm');
+  v.innerHTML = attacked
+    ? `<b>Not detected.</b> One invisible codepoint re-split the stream. Every seed after it is derived from the wrong context, so g-values collapse toward a coin flip and z drops below 2.33.`
+    : `<b>Watermarked.</b> Each seed matches what generation used, so the sampler's bias toward high-g tokens shows through. Mean g sits well above 0.5 and z clears the threshold.`;
+
+  document.querySelectorAll('.viz-tab').forEach(t => t.classList.toggle('active', t.dataset.state === state));
+}
+document.querySelectorAll('.viz-tab').forEach(t => t.addEventListener('click', () => renderViz(t.dataset.state)));
+renderViz('clean');
+
+/* ---------- helpers ---------- */
+function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function verdictChip(z, label) {
+  const detected = z >= THRESHOLD;
+  return `<div class="chip ${detected ? 'flag' : 'clear'}"><span class="k">${label}</span><span class="v">z=${z.toFixed(2)} / ${detected ? 'watermarked' : 'not detected'}</span></div>`;
+}
+
+function renderHeat(text, spans) {
+  const gs = spans.filter(s => s.g !== null).map(s => s.g);
+  const gmax = Math.max(...gs, 1), gmin = Math.min(...gs, 0);
+  const bucketOf = g => Math.round(((g - gmin) / Math.max(gmax - gmin, 0.001)) * 4);
+  const runs = []; let last = 0;
+  for (const s of spans) {
+    if (s.start > last) runs.push({ start: last, end: s.start, bucket: -1 });
+    const bucket = s.g === null ? -1 : bucketOf(s.g);
+    const prev = runs[runs.length - 1];
+    if (prev && prev.bucket === bucket && prev.end === s.start) prev.end = s.end;
+    else runs.push({ start: s.start, end: s.end, bucket });
+    last = s.end;
+  }
+  if (last < text.length) runs.push({ start: last, end: text.length, bucket: -1 });
+  let html = '';
+  for (const r of runs) {
+    const chunk = escapeHtml(text.slice(r.start, r.end));
+    if (r.bucket < 0) { html += chunk; continue; }
+    const alpha = (0.05 + r.bucket * 0.08).toFixed(3);
+    html += `<mark style="background:rgba(167,139,250,${alpha})">${chunk}</mark>`;
+  }
+  return html;
+}
+
+function renderAttacked(text, reveal) {
+  let html = '';
+  for (const ch of Array.from(text)) {
+    const cp = ch.codePointAt(0);
+    const isVS = (cp >= 0xFE00 && cp <= 0xFE0F) || (cp >= 0xE0100 && cp <= 0xE01EF);
+    if (isVS) { if (reveal) html += '<span class="vs-mark"></span>'; }
+    else html += escapeHtml(ch);
+  }
+  return html;
+}
+
+function marksOf(text) {
+  const marks = [];
+  Array.from(text).forEach((ch, i) => {
+    const cp = ch.codePointAt(0);
+    if ((cp >= 0xFE00 && cp <= 0xFE0F) || (cp >= 0xE0100 && cp <= 0xE01EF)) marks.push(i);
+  });
+  return marks;
+}
+
+/* ---------- sample cards ---------- */
+function buildCard(domain, data) {
+  const id = `card-${domain}`;
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="card-head">
+      <span class="domain">${domain}</span>
+      <span class="meta">${data.text.length} chars / edit rate ${(data.edit_rate*100).toFixed(1)}%</span>
+    </div>
+    <div class="card-body">
+      <div class="pane">
+        <div class="pane-label"><span>Before / watermarked</span></div>
+        <div class="textblock" id="${id}-before"></div>
+      </div>
+      <div class="pane">
+        <div class="pane-label">
+          <span>After / attacked</span>
+          <div class="reveal-toggle" data-target="${id}-after">
+            <button data-mode="reader" class="active">as read</button>
+            <button data-mode="annotated">annotated</button>
+          </div>
+        </div>
+        <div class="textblock" id="${id}-after"></div>
+      </div>
+    </div>
+    <div class="stat-row">
+      ${verdictChip(data.z_raw, 'before')}
+      ${verdictChip(data.z_after, 'after (raw)')}
+      ${verdictChip(data.z_after_norm, 'after (normalized)')}
+    </div>`;
+  document.getElementById('sample-grid').appendChild(card);
+
+  document.getElementById(`${id}-before`).innerHTML = renderHeat(data.text, data.spans);
+  const afterEl = document.getElementById(`${id}-after`);
+  afterEl.innerHTML = renderAttacked(data.attacked_text, false);
+  card.querySelector('.reveal-toggle').addEventListener('click', e => {
+    const btn = e.target.closest('button'); if (!btn) return;
+    btn.closest('.reveal-toggle').querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    afterEl.innerHTML = renderAttacked(data.attacked_text, btn.dataset.mode === 'annotated');
+  });
+}
+for (const d of ['prose', 'code', 'mixed']) if (SAMPLES[d]) buildCard(d, SAMPLES[d]);
+
+/* ---------- playground ---------- */
+const VS_BASIC = Array.from({length:16}, (_,i) => String.fromCodePoint(0xFE00 + i));
+function mulberry32(seed) { return function() { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function applyAttack(text, p, seed) {
+  const rnd = mulberry32(seed); const out = []; const marks = [];
+  for (const ch of text) { out.push(ch); if (ch !== '\n' && ch !== '\t' && ch !== ' ' && rnd() < p) { marks.push(out.length); out.push(VS_BASIC[Math.floor(rnd()*16)]); } }
+  return { text: out.join(''), marks };
+}
+const inputEl = document.getElementById('input-text');
+const pgEmpty = document.getElementById('pg-empty');
+const pgOutput = document.getElementById('pg-output');
+const pgText = document.getElementById('pg-text');
+const pgStats = document.getElementById('pg-stats');
+let pgAttacked = null, pgReveal = false;
+document.querySelectorAll('[data-fill]').forEach(b => b.addEventListener('click', () => { const d = SAMPLES[b.dataset.fill]; if (d) inputEl.value = d.text; }));
+document.getElementById('run-attack').addEventListener('click', () => {
+  const raw = inputEl.value; if (!raw.trim()) { inputEl.focus(); return; }
+  const { text: attacked, marks } = applyAttack(raw, 0.30, 29);
+  pgAttacked = attacked;
+  pgEmpty.style.display = 'none';
+  pgOutput.classList.add('show');
+  pgText.innerHTML = renderAttacked(attacked, pgReveal);
+  pgStats.style.display = 'flex';
+  const chars = Array.from(raw).length;
+  pgStats.innerHTML = `<div class="chip"><span class="k">characters</span><span class="v">${chars}</span></div><div class="chip"><span class="k">markers inserted</span><span class="v">${marks.length}</span></div><div class="chip"><span class="k">edit rate</span><span class="v">${(marks.length/Math.max(chars,1)*100).toFixed(1)}%</span></div>`;
+});
+document.getElementById('pg-toggle').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if (!btn || !pgAttacked) return;
+  document.querySelectorAll('#pg-toggle button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active'); pgReveal = btn.dataset.mode === 'annotated';
+  pgText.innerHTML = renderAttacked(pgAttacked, pgReveal);
+});
+</script>

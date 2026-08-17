@@ -93,20 +93,23 @@ for domain, prompt in PROMPTS.items():
 json.dump(out, open(os.path.join(HERE, "demo_samples.json"), "w"), indent=1)
 print("wrote demo_samples.json")
 
-# --- second pass: per-token g-values + char offsets for the heatmap ---
-for domain, prompt in PROMPTS.items():
-    text = out[domain]["text"]
-    enc = tok(text, add_special_tokens=False, return_offsets_mapping=True)
+# --- second pass: per-token g-values for BOTH clean and attacked streams ---
+def token_g(txt):
+    enc = tok(txt, add_special_tokens=False, return_offsets_mapping=True)
     ids, offsets = enc["input_ids"], enc["offset_mapping"]
     t = torch.tensor([ids], device=m.DEVICE)
     g = proc.compute_g_values(t)[0].float().mean(-1).tolist()  # per-position mean over depth
-    # g_values are computed for positions [ngram_len-1 :], align back to token index
-    pad = len(ids) - len(g)
+    pad = len(ids) - len(g)  # g starts at position ngram_len-1
     spans = []
     for i, off in enumerate(offsets):
-        gval = g[i - pad] if i >= pad else None
-        spans.append({"start": off[0], "end": off[1], "g": gval})
-    out[domain]["spans"] = spans
+        spans.append({"start": off[0], "end": off[1], "g": (g[i - pad] if i >= pad else None)})
+    return spans
+
+for domain, prompt in PROMPTS.items():
+    out[domain]["spans"] = token_g(out[domain]["text"])
+    # attacked stream: real g-values after the variation selectors re-split it.
+    # (These read near-null because the seed chain is desynced -- the whole point.)
+    out[domain]["attacked_spans"] = token_g(out[domain]["attacked_text"])
 
 json.dump(out, open(os.path.join(HERE, "demo_samples.json"), "w"), indent=0)
-print("wrote demo_samples.json with spans")
+print("wrote demo_samples.json with clean + attacked spans")
