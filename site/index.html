@@ -91,6 +91,14 @@ p.lede strong { color: var(--ink); font-weight: 600; }
 .masthead-links a { color: var(--ink-soft); }
 .masthead-links a:hover { color: var(--uv-strong); }
 
+/* ===== notice ===== */
+.notice {
+  margin: 34px 0; padding: 17px 19px; border: 1px solid var(--rule-strong); border-left: 3px solid var(--uv);
+  background: var(--surface); border-radius: var(--radius);
+  font-family: var(--mono); font-size: 13px; line-height: 1.7; color: var(--ink-soft);
+}
+.notice b { color: var(--ink); font-weight: 600; }
+
 /* ===== sections ===== */
 section { padding: 60px 0; border-bottom: 1px solid var(--rule); }
 section:last-of-type { border-bottom: none; }
@@ -224,6 +232,10 @@ footer a { color: var(--ink-soft); }
     </div>
   </header>
 
+  <div class="notice">
+    <b>What this can and can't do.</b> Detecting a watermark requires the exact key it was generated with. Nobody outside Anthropic has that key, so this page cannot tell you whether text really came from Claude. What it does instead is faithfully reproduce the mechanism from our study: mark text with our own research key, detect it, attack it, and watch the detector's confidence collapse. Every number and bar below is real, unedited output from that pipeline.
+  </div>
+
   <section id="how">
     <div class="section-head">
       <div class="section-label">01 / the mechanism</div>
@@ -284,7 +296,7 @@ footer a { color: var(--ink-soft); }
     <div class="section-head">
       <div class="section-label">03 / try it yourself</div>
       <h2>Paste anything: prose, code, or both</h2>
-      <p class="section-desc">This box applies the real attack transform, ported line for line from <span class="mono-inline">src/synthid_robustness.py</span>, to whatever you paste. It deliberately shows no detection score, because scoring only means something against the generation-time key. For real before/after numbers, see the three study samples above.</p>
+      <p class="section-desc">This box applies the real attack transform, ported line for line from <span class="mono-inline">src/synthid_robustness.py</span>, live as you type or paste. It deliberately shows no detection score, because scoring only means something against the generation-time key. For real before/after numbers, see the three study samples above.</p>
     </div>
     <div class="playground">
       <div>
@@ -296,7 +308,7 @@ footer a { color: var(--ink-soft); }
           <button class="btn" data-fill="mixed">use mixed sample</button>
         </div>
         <div class="sample-btns">
-          <button class="btn primary" id="run-attack">apply variation-selector attack</button>
+          <button class="btn primary" id="run-attack">re-apply attack</button>
         </div>
       </div>
       <div>
@@ -307,7 +319,7 @@ footer a { color: var(--ink-soft); }
             <button data-mode="annotated">annotated</button>
           </div>
         </div>
-        <div class="output-empty" id="pg-empty">Paste text and apply the attack to see the result here.</div>
+        <div class="output-empty" id="pg-empty">Start typing or paste text on the left. The dewatermarked result appears here live.</div>
         <div class="output-panel" id="pg-output"><div class="textblock" id="pg-text"></div></div>
         <div class="stat-row" id="pg-stats" style="display:none;"></div>
       </div>
@@ -587,9 +599,16 @@ const pgOutput = document.getElementById('pg-output');
 const pgText = document.getElementById('pg-text');
 const pgStats = document.getElementById('pg-stats');
 let pgAttacked = null, pgReveal = false;
-document.querySelectorAll('[data-fill]').forEach(b => b.addEventListener('click', () => { const d = SAMPLES[b.dataset.fill]; if (d) inputEl.value = d.text; }));
-document.getElementById('run-attack').addEventListener('click', () => {
-  const raw = inputEl.value; if (!raw.trim()) { inputEl.focus(); return; }
+
+function runPlayground() {
+  const raw = inputEl.value;
+  if (!raw.trim()) {
+    pgAttacked = null;
+    pgOutput.classList.remove('show');
+    pgEmpty.style.display = 'flex';
+    pgStats.style.display = 'none';
+    return;
+  }
   const { text: attacked, marks } = applyAttack(raw, 0.30, 29);
   pgAttacked = attacked;
   pgEmpty.style.display = 'none';
@@ -598,7 +617,16 @@ document.getElementById('run-attack').addEventListener('click', () => {
   pgStats.style.display = 'flex';
   const chars = Array.from(raw).length;
   pgStats.innerHTML = `<div class="chip"><span class="k">characters</span><span class="v">${chars}</span></div><div class="chip"><span class="k">markers inserted</span><span class="v">${marks.length}</span></div><div class="chip"><span class="k">edit rate</span><span class="v">${(marks.length/Math.max(chars,1)*100).toFixed(1)}%</span></div>`;
+}
+
+// dewatermark live as the user types or pastes (debounced for large pastes)
+let pgTimer = null;
+inputEl.addEventListener('input', () => {
+  clearTimeout(pgTimer);
+  pgTimer = setTimeout(runPlayground, 90);
 });
+document.querySelectorAll('[data-fill]').forEach(b => b.addEventListener('click', () => { const d = SAMPLES[b.dataset.fill]; if (d) { inputEl.value = d.text; runPlayground(); } }));
+document.getElementById('run-attack').addEventListener('click', runPlayground);
 document.getElementById('pg-toggle').addEventListener('click', e => {
   const btn = e.target.closest('button'); if (!btn || !pgAttacked) return;
   document.querySelectorAll('#pg-toggle button').forEach(b => b.classList.remove('active'));
