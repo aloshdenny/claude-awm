@@ -73,6 +73,8 @@ Two things surprised me:
 
 Full mechanism and per-attack tables in [docs/FINDINGS.md](docs/FINDINGS.md).
 
+**[Try the interactive version →](https://claude.ai/code/artifact/2490a685-58de-4c0e-9ac7-e2c105fe4442)** Real study samples with a before/after reveal toggle, plus a playground to run the attack transform on your own text. It won't tell you if arbitrary pasted text is really watermarked (that needs a key we don't have), and it says so; see [site/](site/) for the generator script.
+
 ## the finding that needs no attack
 
 The watermark rides on the model's per-token uncertainty. Where the model is confident about the next token, the tournament has no room to bias it, so no signal goes in. That means **the mark is weak on low-entropy text, and code is low-entropy.**

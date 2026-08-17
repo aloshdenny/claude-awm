@@ -517,10 +517,21 @@ def build_model():
     # of staging the full model in host RAM first (that OOM-killed a 40GB
     # gpt-oss-20b load under WSL's 30GB memory cap).
     if DEVICE == "cuda":
-        # device_map="auto" can partially offload experts to CPU under memory
-        # uncertainty, which looked like nonzero-but-crawling GPU util with no
-        # progress. Pin everything to the single GPU explicitly instead.
-        model = AutoModelForCausalLM.from_pretrained(MODEL, device_map={"": 0}, dtype="auto").eval()
+        if os.environ.get("QUANT") == "bnb4":
+            # On-the-fly 4-bit (bitsandbytes NF4) from the ORIGINAL bf16
+            # weights. Avoids pre-quantized-checkpoint packing bugs entirely
+            # (hit two different ones tonight with community AWQ/FP8 repacks)
+            # by quantizing at load time with a battle-tested backend instead.
+            from transformers import BitsAndBytesConfig
+            bnb_cfg = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_compute_dtype=torch.bfloat16,
+                                         bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True)
+            model = AutoModelForCausalLM.from_pretrained(MODEL, device_map={"": 0},
+                                                          quantization_config=bnb_cfg).eval()
+        else:
+            # device_map="auto" can partially offload experts to CPU under memory
+            # uncertainty, which looked like nonzero-but-crawling GPU util with no
+            # progress. Pin everything to the single GPU explicitly instead.
+            model = AutoModelForCausalLM.from_pretrained(MODEL, device_map={"": 0}, dtype="auto").eval()
     else:
         model = AutoModelForCausalLM.from_pretrained(MODEL, dtype=torch.bfloat16).to(DEVICE).eval()
     return tok, model
