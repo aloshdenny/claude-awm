@@ -1,6 +1,6 @@
 # claude-awm: can you scrub a SynthID text watermark by editing the text?
 
-Hola, Alosh here ✌🏻
+![the dream, allegedly](assets/dewatermarked.png)
 
 **Yes, but only one family of attack works, and it isn't the one everyone assumes.**
 
@@ -159,13 +159,3 @@ ATTACK_SET=desync DEFENSE=1 PROMPT_SET=prose MODEL=Qwen/Qwen3.5-4B \
 `PROMPT_SET` takes `prose`, `code`, or `mixed`. `FAST_WM=1` uses a numpy watermark bridge (faster on small-vocab models with a strong CPU), `FAST_WM=0` uses HF's GPU processor (much faster on big-vocab models; on an H100 this was the difference between 0% and 46% GPU utilisation).
 
 Watermarking needs the full next-token distribution, so it runs through `transformers` (CUDA native MXFP4, or MPS/CPU). Ollama and llama.cpp can't do it, they don't expose logits mid-generation. On Apple Silicon, `src/synthid_mlx.py` bridges MLX generation into the watermark math; it's validated bit-identical to the HF reference.
-
----
-
-![the dream, allegedly](assets/dewatermarked.png)
-
-*(the meme that started it. turns out you need variation selectors, not a find-and-replace.)*
-
----
-
-Note: I used Claude Code heavily for the implementation and to rerun experiments across four machines (a Mac, my own 4090, a rented 3090, and an H100). The experiment design, the attacks I wanted tried, and the calls on framing are mine. Claude insisted on measuring every attack against its own defense, which is why the stego tables have a raw *and* a normalized column instead of just the raw one; that's what turned "invisible characters break it" into the actual finding, which is that only the Mn-category ones survive a normalizer.
