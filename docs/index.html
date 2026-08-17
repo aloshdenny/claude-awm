@@ -96,14 +96,6 @@ p.lede strong { color: var(--ink); font-weight: 600; }
 .masthead-links a { color: var(--ink-soft); }
 .masthead-links a:hover { color: var(--uv-strong); }
 
-/* ===== notice ===== */
-.notice {
-  margin: 34px 0; padding: 17px 19px; border: 1px solid var(--rule-strong); border-left: 3px solid var(--uv);
-  background: var(--surface); border-radius: var(--radius);
-  font-family: var(--mono); font-size: 13px; line-height: 1.7; color: var(--ink-soft);
-}
-.notice b { color: var(--ink); font-weight: 600; }
-
 /* ===== sections ===== */
 section { padding: 60px 0; border-bottom: 1px solid var(--rule); }
 section:last-of-type { border-bottom: none; }
@@ -237,10 +229,6 @@ footer a { color: var(--ink-soft); }
       <a href="https://github.com/aloshdenny/claude-awm/blob/main/docs/FINDINGS.md" target="_blank" rel="noopener">full findings</a>
     </div>
   </header>
-
-  <div class="notice">
-    <b>What this can and can't do.</b> Detecting a watermark requires the exact key it was generated with. Nobody outside Anthropic has that key, so this page cannot tell you whether text really came from Claude. What it does instead is faithfully reproduce the mechanism from our study: mark text with our own research key, detect it, attack it, and watch the detector's confidence collapse. Every number and bar below is real, unedited output from that pipeline.
-  </div>
 
   <section id="how">
     <div class="section-head">
