@@ -22,8 +22,9 @@
   --flag-wash: #1a1206;
   --clear: #5ec7a0;
   --clear-wash: #06160f;
-  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  /* one Apple typeface for the entire page, no second font type */
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
+  --mono: var(--sans);
   --radius: 4px;
 }
 :root[data-theme="light"] {
