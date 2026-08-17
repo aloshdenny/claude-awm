@@ -61,7 +61,7 @@ a:focus-visible, button:focus-visible, textarea:focus-visible {
 
 /* ===== theme toggle ===== */
 .theme-toggle {
-  position: absolute; top: 24px; right: 28px;
+  position: fixed; top: 18px; right: 18px; z-index: 1000;
   display: inline-flex; align-items: center; gap: 7px;
   font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em;
   color: var(--ink-faint); background: var(--surface); border: 1px solid var(--rule-strong);
@@ -136,6 +136,28 @@ h2 { font-family: var(--sans); font-weight: 700; font-size: 28px; letter-spacing
 .viz-verdict.wm { background: var(--clear-wash); color: var(--clear); }
 .viz-verdict.no { background: var(--flag-wash); color: var(--flag); }
 .viz-verdict b { font-weight: 700; }
+
+/* ===== dewatermarking animation ===== */
+.deink { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); overflow: hidden; margin-top: 22px; }
+.deink-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+.deink-title { font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+.deink-play { font-family: var(--mono); font-size: 12px; padding: 8px 14px; border-radius: var(--radius); border: 1px solid var(--uv); background: var(--uv); color: #000; font-weight: 600; cursor: pointer; }
+.deink-play:hover { background: var(--uv-strong); }
+.deink-play:disabled { opacity: 0.5; cursor: default; }
+.deink-text { padding: 18px; font-family: var(--mono); font-size: 13px; line-height: 2.0; white-space: pre-wrap; word-break: break-word; }
+.deink-text mark { background: rgba(167,139,250, calc(var(--ha, 0) * var(--heat, 1))); color: inherit; border-radius: 2px; }
+.ddot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--uv); vertical-align: super; margin: 0 0.5px; opacity: 0; transform: scale(0.3); transition: opacity 0.3s ease, transform 0.3s ease; box-shadow: 0 0 6px var(--uv); }
+.ddot.on { opacity: 1; transform: scale(1); }
+.deink-meter { padding: 22px 18px 18px; border-top: 1px solid var(--rule); }
+.deink-track { position: relative; height: 8px; border-radius: 100px; background: var(--rule); }
+.deink-fill { height: 100%; border-radius: 100px; background: var(--clear); width: 0%; }
+.deink-thresh { position: absolute; top: -5px; bottom: -5px; width: 2px; background: var(--ink-faint); }
+.deink-thresh::after { content: "threshold 2.33"; position: absolute; top: -17px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 9.5px; color: var(--ink-faint); white-space: nowrap; }
+.deink-read { display: flex; justify-content: space-between; margin-top: 15px; font-family: var(--mono); font-size: 12.5px; }
+.deink-zval { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.deink-status { font-weight: 700; letter-spacing: 0.04em; }
+.deink-status.wm { color: var(--clear); }
+.deink-status.no { color: var(--flag); }
 
 /* ===== sample cards ===== */
 .sample-grid { display: grid; gap: 22px; }
@@ -232,6 +254,18 @@ footer a { color: var(--ink-soft); }
         <div class="gstat"><span id="viz-gnote"></span><span>mean g = <b id="viz-gmean"></b></span></div>
       </div>
       <div class="viz-verdict" id="viz-verdict"></div>
+    </div>
+
+    <div class="deink">
+      <div class="deink-head">
+        <div class="deink-title">Watch the watermark come off</div>
+        <button class="deink-play" id="deink-play">&#9654; run dewatermarking</button>
+      </div>
+      <div class="deink-text" id="deink-text"></div>
+      <div class="deink-meter">
+        <div class="deink-track"><div class="deink-fill" id="deink-fill"></div><div class="deink-thresh" id="deink-thresh"></div></div>
+        <div class="deink-read"><span class="deink-zval" id="deink-zval">z = 0</span><span class="deink-status wm" id="deink-status">WATERMARKED</span></div>
+      </div>
     </div>
   </section>
 
@@ -364,6 +398,80 @@ function renderViz(state) {
 }
 document.querySelectorAll('.viz-tab').forEach(t => t.addEventListener('click', () => renderViz(t.dataset.state)));
 renderViz('clean');
+
+/* ---------- dewatermarking animation (real z: watermarked -> attacked) ---------- */
+(function(){
+  const S = SAMPLES.prose;
+  let cut = S.text.lastIndexOf(' ', 300); if (cut < 140) cut = 300;
+  const text = S.text.slice(0, cut).trimEnd() + ' …';
+  const spans = S.spans.filter(s => s.g !== null && s.start < cut);
+  const gs = spans.map(s => s.g);
+  const gmax = Math.max(...gs, 1), gmin = Math.min(...gs, 0);
+  const alphaOf = g => 0.05 + Math.round(((g - gmin) / Math.max(gmax - gmin, 0.001)) * 4) * 0.085;
+
+  // merge adjacent same-intensity runs, then emit chars with a dot every ~11th
+  const runs = []; let last = 0;
+  for (const s of spans) {
+    if (s.start > last) runs.push({ start: last, end: s.start, a: 0 });
+    const a = alphaOf(s.g);
+    const prev = runs[runs.length - 1];
+    if (prev && prev.a === a && prev.end === s.start) prev.end = s.end;
+    else runs.push({ start: s.start, end: s.end, a });
+    last = s.end;
+  }
+  if (last < text.length) runs.push({ start: last, end: text.length, a: 0 });
+
+  const container = document.getElementById('deink-text');
+  let charCount = 0, dotN = 0, html = '';
+  for (const r of runs) {
+    let out = '';
+    for (const ch of text.slice(r.start, r.end)) {
+      out += escapeHtml(ch);
+      if (ch !== ' ' && ch !== '\n' && (++charCount % 11 === 0)) { out += `<i class="ddot" data-i="${dotN++}"></i>`; }
+    }
+    html += r.a > 0 ? `<mark style="--ha:${r.a.toFixed(3)}">${out}</mark>` : out;
+  }
+  container.innerHTML = html;
+  const dotEls = [...container.querySelectorAll('.ddot')];
+  const total = Math.max(1, dotEls.length);
+
+  const zStart = S.z_raw, zEnd = S.z_after;
+  const ZMAX = Math.max(4, zStart * 1.08);
+  const fill = document.getElementById('deink-fill');
+  const zval = document.getElementById('deink-zval');
+  const status = document.getElementById('deink-status');
+  document.getElementById('deink-thresh').style.left = (2.33 / ZMAX * 100).toFixed(1) + '%';
+
+  function paint(z, heat, reveal) {
+    container.style.setProperty('--heat', heat.toFixed(3));
+    fill.style.width = Math.max(0, Math.min(100, z / ZMAX * 100)).toFixed(1) + '%';
+    const det = z >= 2.33;
+    fill.style.background = det ? 'var(--clear)' : 'var(--flag)';
+    zval.textContent = 'z = ' + z.toFixed(2);
+    status.textContent = det ? 'WATERMARKED' : 'NOT DETECTED';
+    status.className = 'deink-status ' + (det ? 'wm' : 'no');
+    for (let i = 0; i < dotEls.length; i++) dotEls[i].classList.toggle('on', reveal > i / total);
+  }
+  const reset = () => paint(zStart, 1, 0);
+  reset();
+
+  const btn = document.getElementById('deink-play');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let running = false;
+  btn.addEventListener('click', () => {
+    if (running) return;
+    if (reduce) { paint(zEnd, 0, 1); btn.innerHTML = '▶ run again'; return; }
+    running = true; btn.disabled = true; reset();
+    const dur = 2600, t0 = performance.now();
+    (function frame(now) {
+      const p = Math.min(1, (now - t0) / dur);
+      const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; // easeInOutQuad
+      paint(zStart + (zEnd - zStart) * e, 1 - e, e);
+      if (p < 1) requestAnimationFrame(frame);
+      else { running = false; btn.disabled = false; btn.innerHTML = '▶ run again'; }
+    })(t0);
+  });
+})();
 
 /* ---------- helpers ---------- */
 function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
