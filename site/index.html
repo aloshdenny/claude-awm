@@ -134,6 +134,7 @@ h2 { font-family: var(--sans); font-weight: 700; font-size: 28px; letter-spacing
 .deink { border: 1px solid var(--rule); border-radius: var(--radius); background: var(--surface); overflow: hidden; margin-top: 22px; }
 .deink-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
 .deink-title { font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+.deink-domain { color: var(--uv-strong); }
 .deink-play { font-family: var(--mono); font-size: 12px; padding: 8px 14px; border-radius: var(--radius); border: 1px solid var(--uv); background: var(--uv); color: #000; font-weight: 600; cursor: pointer; }
 .deink-play:hover { background: var(--uv-strong); }
 .deink-play:disabled { opacity: 0.5; cursor: default; }
@@ -247,13 +248,25 @@ footer a { color: var(--ink-soft); }
 
     <div class="deink">
       <div class="deink-head">
-        <div class="deink-title">Watch the watermark come off</div>
+        <div class="deink-title">Watch the watermark come off <span class="deink-domain">prose</span></div>
         <button class="deink-play" id="deink-play">&#9654; run dewatermarking</button>
       </div>
       <div class="deink-text" id="deink-text"></div>
       <div class="deink-meter">
         <div class="deink-track"><div class="deink-fill" id="deink-fill"></div><div class="deink-thresh" id="deink-thresh"></div></div>
         <div class="deink-read"><span class="deink-zval" id="deink-zval">z = 0</span><span class="deink-status wm" id="deink-status">WATERMARKED</span></div>
+      </div>
+    </div>
+
+    <div class="deink">
+      <div class="deink-head">
+        <div class="deink-title">And the same on <span class="deink-domain">code</span></div>
+        <button class="deink-play" id="deink2-play">&#9654; run dewatermarking</button>
+      </div>
+      <div class="deink-text" id="deink2-text"></div>
+      <div class="deink-meter">
+        <div class="deink-track"><div class="deink-fill" id="deink2-fill"></div><div class="deink-thresh" id="deink2-thresh"></div></div>
+        <div class="deink-read"><span class="deink-zval" id="deink2-zval">z = 0</span><span class="deink-status wm" id="deink2-status">WATERMARKED</span></div>
       </div>
     </div>
   </section>
@@ -389,9 +402,8 @@ document.querySelectorAll('.viz-tab').forEach(t => t.addEventListener('click', (
 renderViz('clean');
 
 /* ---------- dewatermarking animation (real z: watermarked -> attacked) ---------- */
-(function(){
-  const S = SAMPLES.prose;
-  let cut = S.text.lastIndexOf(' ', 300); if (cut < 140) cut = 300;
+function mountDeink(S, prefix, maxChars) {
+  let cut = S.text.lastIndexOf(' ', maxChars); if (cut < 140) cut = maxChars;
   const text = S.text.slice(0, cut).trimEnd() + ' …';
   const spans = S.spans.filter(s => s.g !== null && s.start < cut);
   const gs = spans.map(s => s.g);
@@ -410,7 +422,7 @@ renderViz('clean');
   }
   if (last < text.length) runs.push({ start: last, end: text.length, a: 0 });
 
-  const container = document.getElementById('deink-text');
+  const container = document.getElementById(prefix + '-text');
   let charCount = 0, dotN = 0, html = '';
   for (const r of runs) {
     let out = '';
@@ -426,10 +438,10 @@ renderViz('clean');
 
   const zStart = S.z_raw, zEnd = S.z_after;
   const ZMAX = Math.max(4, zStart * 1.08);
-  const fill = document.getElementById('deink-fill');
-  const zval = document.getElementById('deink-zval');
-  const status = document.getElementById('deink-status');
-  document.getElementById('deink-thresh').style.left = (2.33 / ZMAX * 100).toFixed(1) + '%';
+  const fill = document.getElementById(prefix + '-fill');
+  const zval = document.getElementById(prefix + '-zval');
+  const status = document.getElementById(prefix + '-status');
+  document.getElementById(prefix + '-thresh').style.left = (2.33 / ZMAX * 100).toFixed(1) + '%';
 
   function paint(z, heat, reveal) {
     container.style.setProperty('--heat', heat.toFixed(3));
@@ -444,7 +456,7 @@ renderViz('clean');
   const reset = () => paint(zStart, 1, 0);
   reset();
 
-  const btn = document.getElementById('deink-play');
+  const btn = document.getElementById(prefix + '-play');
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let running = false;
   btn.addEventListener('click', () => {
@@ -460,7 +472,9 @@ renderViz('clean');
       else { running = false; btn.disabled = false; btn.innerHTML = '▶ run again'; }
     })(t0);
   });
-})();
+}
+mountDeink(SAMPLES.prose, 'deink', 300);
+mountDeink(SAMPLES.code, 'deink2', 340);
 
 /* ---------- helpers ---------- */
 function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
