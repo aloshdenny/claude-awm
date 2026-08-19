@@ -13,8 +13,9 @@ Replicated on three models, two domains:
 | gpt-oss-20b | prose | 45.03 | **0.72** | 57% |
 | gpt-oss-20b | code | 37.24 | **0.68** | 58% |
 | Qwen3.8-27B | prose | 35.50 | **-0.67** | 57% |
+| Qwen3.8-27B | code | 4.31 | *(baseline only, see below)* | *(n/a)* |
 
-Threshold is z = 2.33. All three land under it, and stay under after normalization (0.09, 0.45, -0.78 respectively). Text renders identically to a human reader.
+Threshold is z = 2.33. The first three land under it after the attack, and stay under after normalization (0.09, 0.45, -0.78 respectively). Text renders identically to a human reader. The 27B code row is different in kind: its baseline is already at z = 4.31 with *no attack applied*, so there's no meaningful attack delta to report there, only a bare-detector near-miss. It's included in this table for comparison, not as a fourth replication.
 
 The second real finding needs no attack at all: **low-entropy text is barely watermarked to begin with.** Qwen3.8-27B code generation has a clean baseline of z = 4.31, already near threshold with nothing done to it.
 
@@ -134,7 +135,13 @@ src/prompts_code.py         prose / code / mixed prompt sets
 src/build_report_data.py    assembles results/ into the tables in FINDINGS.md
 results/                    the JSON this is all computed from
 docs/FINDINGS.md            every table, the defense hierarchy, the bugs I caught
+site/                       the interactive page, source for aloshdenny.com/claude-awm
+connector/                  a local MCP server for Claude: detection only, see below
 ```
+
+## the Claude connector
+
+[connector/](connector/) is a local MCP server exposing one real tool to Claude: paste text, get back a verdict, a z-score, and a per-token g-value heatmap, scored with the exact detection math from `synthid_robustness.py`. It is detection-only on purpose. There is no tool that hands back a modified version of your text, and it can't tell you whether text really came from Claude or any other production system, since that needs a key only the issuing company has. Setup in [connector/README.md](connector/README.md).
 
 ## running it
 
