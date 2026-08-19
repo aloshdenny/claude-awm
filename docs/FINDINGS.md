@@ -209,3 +209,42 @@ partly an artifact of this model's code-generation style (very templated
 output, high token predictability) is not something these two documents can
 separate -- it needs a per-token entropy measurement like section 2, which
 was not run for this model.
+
+## 8 — DeepSeek-R1-Distill-Qwen-14B (4-bit MLX, Apple Silicon)
+
+Fifth model, and the first reasoning-distilled one. Run locally on an M-series
+Mac (17GB unified memory) through the MLX bridge in `src/synthid_mlx.py`,
+because llama.cpp/Ollama GGUF builds cannot be watermarked at all -- they do
+not expose logits during generation, which is where the watermark is applied.
+The MLX fast path was verified bit-identical to the HF reference before
+generating (g-values exact; reweight max prob diff 2.98e-08).
+
+| metric | value |
+|---|---|
+| quantization | 4-bit, 8.3 GB |
+| throughput | ~6.3 tok/s |
+| tokens / scoreable | 4096 / 3955 |
+| mean g | 0.5259 |
+| null mean / sd | 0.5000 / 0.00146 |
+| **z** | **17.66** (threshold 2.33) |
+
+Detected comfortably. But note the mean g: **0.526, against 0.56-0.60 for
+ordinary prose on the other models.** The generated stream turned out to be
+almost entirely `<think>` reasoning chains ("Okay, I need to... Hmm... Wait...
+Oh right..."), with six closing `</think>` tags and no substantial final-answer
+text. So this row measures the watermark on **reasoning traces**, not on
+answers.
+
+That is consistent with the entropy finding in section 2 extended to a new
+axis: reasoning text is more templated and lower-entropy than expository
+prose, so the tournament has less room to bias each choice. It is suggestive,
+not established -- a clean test needs per-token entropy measured separately
+for reasoning vs answer spans on the same model, which is a single-model
+observation here and not something these 4096 tokens can settle on their own.
+
+**Detector note.** Nothing about the detector changed for this model. It has
+no learned parameters: `ngram_len`, `depth`, a keyed LCG hash chain, a
+seed-0 sampling table, and a 16-wrong-key empirical null. Each of the five
+models tested is an independent generator checked against that same fixed
+algorithm. The only model-specific requirement is the tokenizer, since
+detection must reproduce the exact token IDs generation produced.

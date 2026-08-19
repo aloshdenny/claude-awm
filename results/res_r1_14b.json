@@ -1,0 +1,20 @@
+{
+ "model": "mlx-community/DeepSeek-R1-Distill-Qwen-14B-4bit",
+ "note": "5th model. Ran locally on Apple Silicon via the MLX bridge (src/synthid_mlx.py); GGUF/Ollama cannot be watermarked at all since llama.cpp does not expose logits during generation. MLX fast path verified bit-identical to the HF reference (g-values exact, reweight max prob diff 2.98e-08) before generating.",
+ "device": "mps",
+ "quantization": "4bit",
+ "size_gb": 8.3,
+ "tok_per_s": 6.3,
+ "ngram_len": 5,
+ "depth": 30,
+ "n_null": 16,
+ "threshold": 2.33,
+ "tokens": 4096,
+ "scored_tokens": 3955,
+ "mean_g": 0.5259,
+ "null_mu": 0.5,
+ "null_sd": 0.00146,
+ "z": 17.66,
+ "detected": true,
+ "caveat": "Output was almost entirely <think> reasoning chains (6 closing </think> tags, no substantial post-reasoning answer text), so this measures the watermark on reasoning traces rather than on final answers. mean_g 0.526 is notably below the 0.56-0.60 seen for ordinary prose on other models."
+}
