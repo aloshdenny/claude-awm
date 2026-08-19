@@ -235,12 +235,37 @@ Oh right..."), with six closing `</think>` tags and no substantial final-answer
 text. So this row measures the watermark on **reasoning traces**, not on
 answers.
 
-That is consistent with the entropy finding in section 2 extended to a new
-axis: reasoning text is more templated and lower-entropy than expository
-prose, so the tournament has less room to bias each choice. It is suggestive,
-not established -- a clean test needs per-token entropy measured separately
-for reasoning vs answer spans on the same model, which is a single-model
-observation here and not something these 4096 tokens can settle on their own.
+### the reasoning-entropy hypothesis, and why it was wrong
+
+The obvious explanation was that reasoning text is more templated and thus
+lower-entropy than prose, leaving the tournament less room to bias each
+choice. **That was measured and it is false.** Per-token entropy on the same
+model, same run, splitting on the `</think>` boundary:
+
+| span | tokens | entropy |
+|---|---|---|
+| reasoning (`<think>`) | 1171 | **0.891** bits/tok |
+| final answer | 1246 | **0.441** bits/tok |
+
+Reasoning is the **higher**-entropy half, not the lower one. A first attempt
+at this measurement was confounded and is reported here for completeness: it
+used short factual prompts ("what is 17x23?") chosen so reasoning would fit
+the token budget, which made the answers deterministic strings and gave a
+meaningless 0.41x ratio. Re-run with prompts demanding substantive prose
+answers, the direction held at 0.49x.
+
+So the depressed `mean_g` is not a reasoning-vs-answer effect. The better
+explanation is model-level: R1-distill runs low-entropy across **both** spans
+(weighted overall 0.659 bits/tok) against 1.19 bits/tok measured for
+Qwen3.5-4B prose in section 2, roughly 0.55x. A distilled, 4-bit-quantized
+model is simply more confident per token than the models in the earlier runs.
+That is still a cross-model comparison and not a controlled one.
+
+Caveat on the numbers above: the two prompts contributed very unevenly. The
+first supplied nearly all the reasoning tokens, the second nearly all the
+answer tokens, so this is closer to a cross-prompt comparison than a clean
+within-prompt one. Directionally consistent across both attempts, but it
+would want more prompts to be called settled.
 
 **Detector note.** Nothing about the detector changed for this model. It has
 no learned parameters: `ngram_len`, `depth`, a keyed LCG hash chain, a

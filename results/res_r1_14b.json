@@ -16,5 +16,19 @@
  "null_sd": 0.00146,
  "z": 17.66,
  "detected": true,
- "caveat": "Output was almost entirely <think> reasoning chains (6 closing </think> tags, no substantial post-reasoning answer text), so this measures the watermark on reasoning traces rather than on final answers. mean_g 0.526 is notably below the 0.56-0.60 seen for ordinary prose on other models."
+ "caveat": "Output was almost entirely <think> reasoning chains, so the z above measures the watermark on reasoning traces. The original guess that this depressed mean_g because reasoning is low-entropy was tested and refuted; see entropy_followup.",
+ "entropy_followup": {
+  "reasoning_bits_per_tok": 0.891,
+  "reasoning_n": 1171,
+  "answer_bits_per_tok": 0.441,
+  "answer_n": 1246,
+  "ratio_answer_over_reasoning": 0.49,
+  "overall_weighted_bits_per_tok": 0.659,
+  "result": "REFUTES the hypothesis in the original caveat. Reasoning is the HIGHER-entropy span, not the lower one. The depressed mean_g is better explained as a model-level property (R1-distill 4bit runs 0.659 bits/tok overall vs 1.19 for Qwen3.5-4B prose, ~0.55x).",
+  "caveats": [
+   "A first attempt was confounded: short factual prompts made answers deterministic strings, giving a meaningless 0.41x. Re-run with prose prompts gave 0.49x, same direction.",
+   "The two prompts contributed unevenly (one supplied nearly all reasoning tokens, the other nearly all answer tokens), so this is closer to a cross-prompt than a within-prompt comparison.",
+   "The comparison to Qwen3.5-4B prose is cross-model and not controlled."
+  ]
+ }
 }
