@@ -1,0 +1,55 @@
+{
+ "model": "openai/gpt-oss-120b",
+ "platform": "Modal 1x H100 80GB",
+ "quant": "native MXFP4 65.3GB",
+ "note": "one 32k generation per domain; 2k and 8k are scored prefixes of the same stream",
+ "cells": {
+  "prose@2048": {
+   "scored": 1989,
+   "mean_g": 0.5293,
+   "z": 16.09
+  },
+  "prose@8192": {
+   "scored": 7899,
+   "mean_g": 0.5259,
+   "z": 28.01
+  },
+  "prose@32768": {
+   "scored": 31588,
+   "mean_g": 0.5258,
+   "z": 30.67
+  },
+  "code@2048": {
+   "scored": 1954,
+   "mean_g": 0.5194,
+   "z": 11.97
+  },
+  "code@8192": {
+   "scored": 7704,
+   "mean_g": 0.5185,
+   "z": 14.83
+  },
+  "code@32768": {
+   "scored": 30749,
+   "mean_g": 0.5198,
+   "z": 19.2
+  },
+  "reasoning@2048": {
+   "scored": 1847,
+   "mean_g": 0.519,
+   "z": 9.58
+  },
+  "reasoning@8192": {
+   "scored": 7250,
+   "mean_g": 0.5221,
+   "z": 15.44
+  },
+  "reasoning@32768": {
+   "scored": 28471,
+   "mean_g": 0.5206,
+   "z": 16.86
+  }
+ },
+ "all_detected": true,
+ "threshold": 2.33
+}

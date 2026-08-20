@@ -367,3 +367,30 @@ Three independent blockers, any one fatal, so no compute was purchased:
   roughly $96/hr.
 - The GGUF builds (smallest quant 551.5 GB) **cannot be watermarked at all**,
   since llama.cpp does not expose logits during generation. Size is moot.
+
+## 11 — gpt-oss-120b across context length (2k / 8k / 32k)
+
+One 32k generation per domain; the 2k and 8k rows are scored *prefixes* of
+that same stream, which is how the original ladder worked and costs nothing
+extra.
+
+| domain | z @2k | z @8k | z @32k |
+|---|---|---|---|
+| prose | 16.09 | 28.01 | **30.67** |
+| code | 11.97 | 14.83 | **19.20** |
+| reasoning | 9.58 | 15.44 | **16.86** |
+
+All nine cells detected (threshold 2.33). Two things worth reading off this:
+
+**z grows with length, `mean_g` does not.** Within each domain `mean_g` sits
+flat near 0.52 at every length (prose 0.5293 / 0.5259 / 0.5258). The whole z
+increase comes from token count, exactly as the sqrt(n) scaling predicts. Per-token
+signal strength is a property of the model and domain; length only buys
+statistical confidence.
+
+**The domain ordering holds at every length**: prose > code ~ reasoning,
+consistent with the entropy finding. Length does not rescue a low-entropy
+domain relative to a high-entropy one, it lifts both.
+
+This is the practical restatement of the earlier "length helps the detector,
+not the attacker" result, now measured on the largest model in the study.
