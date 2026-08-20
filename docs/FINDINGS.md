@@ -273,3 +273,57 @@ seed-0 sampling table, and a 16-wrong-key empirical null. Each of the five
 models tested is an independent generator checked against that same fixed
 algorithm. The only model-specific requirement is the tokenizer, since
 detection must reproduce the exact token IDs generation produced.
+
+## 9 — gpt-oss-120b: attempted locally, infeasible (recorded as a negative result)
+
+Tried on an M-series Mac, 17.2 GB unified memory, using the MLX 4-bit build
+(`mlx-community/gpt-oss-120b-4bit`, 65.8 GB -- the smallest published quant;
+no 2/3-bit build exists). Three independent constraints, all measured rather
+than estimated:
+
+| constraint | measured |
+|---|---|
+| memory | 65.8 GB weights vs 17.2 GB RAM = **3.8x oversubscribed** |
+| bandwidth | ~23 Mbps link, **4 h** to pull 65.8 GB (verified against an independent CDN, so it is the link, not the transfer backend) |
+| execution | **SIGKILL**, twice |
+
+The download completed fine. Execution did not:
+
+1. `mlx_lm.load()` defaults to `lazy=False`, so it materialised all 65.8 GB at
+   once and the OS killed it ~5 min in (no traceback; a leaked-semaphore
+   warning is the SIGKILL signature).
+2. Retried with `lazy=True`. Load then returned in 2 s at 0.0 GB active, which
+   looked promising -- but generation was killed **before the first token**.
+   One forward pass has to materialise attention, router, and the selected
+   experts across all 36 layers plus KV cache; MoE sparsity (~5.1B active
+   params) does not make that fit.
+
+So the ceiling is not throughput, it is a single forward pass. No amount of
+patience or paging fixes it, and there is no smaller quantisation to fall back
+to. gpt-oss-120b needs a machine that can hold it -- an 80 GB-class GPU, where
+it fits in VRAM natively.
+
+Recorded alongside the GLM-5.2 and Kimi-K3 entries as attempted-and-blocked
+rather than quietly dropped.
+
+### two bugs this attempt exposed, both fixed
+
+- **The runner reported success on a dead run.** Generation was killed, the
+  orchestration script proceeded to the scoring step anyway, found zero
+  documents, wrote `res_120b.json` as `{}`, and printed "CHAIN COMPLETE". Exit
+  codes are now checked and the absence of documents is now fatal. Same class
+  of mistake as trusting a download that never started: reporting a step
+  succeeded without verifying it produced anything.
+- **`set_wired_limit(11 GB)` on a 17 GB machine was counterproductive**,
+  starving the pager it was meant to help. Set to 0 (OS-managed).
+
+### one genuine speedup, kept
+
+The watermark's per-token g-value computation ran in numpy on the CPU: ~6M
+int64 ops over gpt-oss's ~201k vocab, every token. MLX int64 multiply wraps
+identically to numpy/torch, so the whole LCG hash chain ports to Metal
+unchanged. Verified bit-identical at vocab 1k/8k/64k before use:
+**52.0 ms -> 22.9 ms per token, 2.3x**. Kept in `connector/`-adjacent tooling
+for any future Apple-Silicon run. (Finding this required fixing a test bug of
+mine first: the numpy `reweight` mutates its input in place, so the CPU call
+was corrupting the input the GPU call then read.)
