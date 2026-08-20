@@ -1,0 +1,42 @@
+{
+ "model": "Qwen/Qwen3.8-27B",
+ "platform": "Modal 1x H100",
+ "precision": "bf16",
+ "condition": "thinking ENABLED (default chat template, ends '<think>\\n')",
+ "cells": {
+  "code@2048": {
+   "scored": 1905,
+   "mean_g": 0.5395,
+   "z": 17.67
+  },
+  "code@8192": {
+   "scored": 7724,
+   "mean_g": 0.5374,
+   "z": 25.53
+  },
+  "code@32768": {
+   "scored": 30744,
+   "mean_g": 0.5395,
+   "z": 43.87
+  },
+  "prose@2048": {
+   "scored": 1971,
+   "mean_g": 0.5406,
+   "z": 16.1,
+   "note": "partial run, stopped early to preserve budget"
+  }
+ },
+ "controlled_contrast_at_8192": {
+  "thinking_off": {
+   "mean_g": 0.5056,
+   "z": 4.31,
+   "source": "res_q27b_code_vs.json, study harness with enable_thinking=False"
+  },
+  "thinking_on": {
+   "mean_g": 0.5374,
+   "z": 25.53
+  },
+  "finding": "one flag moves z ~6x on the same model+domain+length"
+ },
+ "caveat": "prompt sets differ slightly between the two runs (8 study prompts vs 3 here, overlapping but not identical), so the contrast is strong but not perfectly controlled"
+}

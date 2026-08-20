@@ -394,3 +394,48 @@ domain relative to a high-entropy one, it lifts both.
 
 This is the practical restatement of the earlier "length helps the detector,
 not the attacker" result, now measured on the largest model in the study.
+
+## 12 — reasoning tokens dominate watermark strength on low-entropy domains
+
+This one came out of a mistake. A Modal re-run of Qwen3.8-27B on code was
+meant to extend the length ladder to 32k, but it used the tokenizer's default
+chat template instead of the study harness's `enable_thinking=False`. Those
+are different experiments: the default template ends `<think>\n` and the model
+reasons before answering, while the harness ends `<think>\n\n</think>\n\n` and
+the model emits code directly.
+
+The accident produced a controlled comparison at matched length (8192 tokens,
+same model, same domain, both bf16 on an H100):
+
+| condition | mean g | z @8192 |
+|---|---|---|
+| thinking **off** (pure code) | 0.5056 | **4.31** |
+| thinking **on** (reasoning, then code) | 0.5374 | **25.53** |
+
+**One flag moves z by roughly 6x.** And the cross-domain picture sharpens it:
+
+| condition | prose mean g | code mean g |
+|---|---|---|
+| thinking off | (z 35.50) | 0.5056 (z 4.31) |
+| thinking on | 0.5406 | 0.5395 |
+
+With thinking enabled, prose and code have *nearly identical* per-token signal
+(0.5406 vs 0.5395). With it disabled they diverge enormously. The reasoning
+preamble dominates the token stream and **homogenises entropy across domains**.
+
+The practical consequence: **"watermark strength on code" is not well defined
+for a reasoning model without specifying thinking mode.** In default mode a
+"code" request produces mostly reasoning tokens, which are ordinary prose and
+carry the mark normally. The low-entropy weakness in section 2 applies to the
+*emitted code itself*, and a model that thinks out loud first largely escapes
+it -- not by strengthening the watermark on code, but by emitting less code
+per response.
+
+With thinking on, the length ladder behaves normally: z = 17.67 / 25.53 /
+43.87 at 2k / 8k / 32k.
+
+**Caveat:** the prompt sets differ slightly between the two runs (eight study
+prompts vs three here, overlapping but not identical), so the contrast is
+strong but not perfectly controlled. The `mean_g` gap (0.5056 vs 0.5374) is
+far larger than prompt variation plausibly explains, but a purpose-built A/B
+on identical prompts would settle it.
