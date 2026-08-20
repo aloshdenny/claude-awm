@@ -13,11 +13,10 @@ Replicated across models and domains:
 | gpt-oss-20b | prose | 45.03 | **0.72** | 57% |
 | gpt-oss-20b | code | 37.24 | **0.68** | 58% |
 | Qwen3.8-27B | prose | 35.50 | **-0.67** | 57% |
-| Qwen3.8-27B | code | 4.31 | *(baseline only, see below)* | *(n/a)* |
 
-Threshold is z = 2.33. The first three land under it after the attack, and stay under after normalization (0.09, 0.45, -0.78 respectively). Text renders identically to a human reader. The 27B code row is different in kind: its baseline is already at z = 4.31 with *no attack applied*, so there's no meaningful attack delta to report there, only a bare-detector near-miss. It's included in this table for comparison, not as a fourth replication.
+Threshold is z = 2.33. All three land under it after the attack, and stay under after normalization (0.09, 0.45, -0.78 respectively). Text renders identically to a human reader.
 
-The second real finding needs no attack at all: **low-entropy text is barely watermarked to begin with.** Qwen3.8-27B code generation has a clean baseline of z = 4.31, already near threshold with nothing done to it.
+The second real finding needs no attack at all: **low-entropy text is barely watermarked to begin with.** With thinking disabled, Qwen3.8-27B's pure code output scores z = 4.31 unattacked, close to the 2.33 threshold with nothing done to it. Turn thinking back on and the same model, same domain, same length reaches z = 25.53, because the reasoning preamble is ordinary prose and carries the mark normally.
 
 ## models tested
 
@@ -31,6 +30,7 @@ Everything in this repo was measured on these, nothing else:
 | gpt-oss-20b | 20B | 3090 / 4090 | full attack ladder to 32k, prose + code, variation selectors |
 | Qwen3.8-27B | 27B | RunPod H100 / Modal H100 | prose + code, variation selectors, thinking-mode contrast |
 | gpt-oss-120b | 120B | Modal H100 (MXFP4) | prose + code + reasoning at 2k / 8k / 32k |
+| DeepSeek-V4-Flash | 284B MoE | RunPod 2x H200 (FP8) | prose + code at 2k / 8k |
 
 Not every experiment ran on every model, and the tables below say which ran
 where. Larger models were added as the interesting questions narrowed, so the
@@ -92,7 +92,17 @@ Two things surprised me:
 
 Full mechanism and per-attack tables in [docs/FINDINGS.md](docs/FINDINGS.md).
 
-**[Charts: watermark strength vs context, and attack cost vs context →](https://aloshdenny.com/claude-awm/charts.html)**  Two figures from the study data.
+### the detector wins by waiting
+
+![watermark strength vs context](assets/chart_strength_vs_context.svg)
+
+Watermark confidence grows with context while per-token signal stays flat, so a longer document is *harder* to attack, not easier. Prose carries the strongest mark at every length; DeepSeek-V4-Flash (dashed) reproduces the same climb on a 284B MoE.
+
+![attack cost vs context](assets/chart_attack_cost_vs_context.svg)
+
+And the attack has to keep up. Each cell is how many of 8 random insertion seeds beat the detector. 10% insertion clears 1k tokens but fails completely by 4k; only 30% held everywhere tested. **The required insertion rate rises with context length**, which is why the attack is not context-agnostic.
+
+[Interactive versions →](https://aloshdenny.com/claude-awm/charts.html)
 
 **[Try the interactive version →](https://aloshdenny.com/claude-awm/)** Real study samples with a before/after reveal toggle, plus a playground to run the attack transform on your own text. It won't tell you if arbitrary pasted text is really watermarked (that needs a key we don't have), and it says so; see [site/](site/) for the generator script.
 

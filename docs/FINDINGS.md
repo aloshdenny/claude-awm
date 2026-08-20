@@ -274,21 +274,10 @@ models tested is an independent generator checked against that same fixed
 algorithm. The only model-specific requirement is the tokenizer, since
 detection must reproduce the exact token IDs generation produced.
 
-## 9 — gpt-oss-120b: why it needs an 80 GB card
 
-Briefly, because it shapes section 10: the 4-bit MLX build is 65.8 GB against
-17.2 GB of unified memory on the Mac, a 3.8x oversubscription. `mlx_lm.load`
-defaults to `lazy=False` and materialises everything at once, which the OS
-kills; with `lazy=True` the load returns instantly at 0 GB but generation is
-killed before the first token, because one forward pass across 36 layers plus
-KV cache does not fit regardless of MoE sparsity. 4-bit is the smallest
-published quantisation, so there is no smaller fallback. The model needs a
-machine that can hold it, which is what section 10 uses.
+## 9 — gpt-oss-120b on an H100
 
-
-## 10 — gpt-oss-120b on an H100
-
-Same model, same watermark, different machine. On Modal with a single H100
+On Modal with a single H100
 (80 GB) it loads **native MXFP4 at 65.3 GB resident** with room to spare, and
 all three domains watermark and detect cleanly:
 
@@ -302,11 +291,6 @@ Threshold 2.33; all three detected. Roughly 15-30x the throughput the Mac
 would have managed had it run at all, and it completed in minutes rather than
 the 14+ hours estimated locally.
 
-**The load figure is the thing to check, not the model size.** 65.3 GB
-resident confirms native MXFP4. With Triton absent, transformers silently
-dequantizes those weights to bf16 (~240 GB for this model) and OOMs -- the
-same trap noted earlier in the multi-GPU work. Installing `triton` and
-`kernels` in the image is what makes an 80 GB card sufficient.
 
 The domain ordering matches the entropy finding: **prose (16.09) carries a
 clearly stronger mark than code (11.97) or reasoning (11.61)**. Worth noting
@@ -315,7 +299,7 @@ smaller models' prose, so the per-token signal here is thinner across the
 board and the high z comes partly from token count.
 
 
-## 11 — gpt-oss-120b across context length (2k / 8k / 32k)
+## 10 — gpt-oss-120b across context length (2k / 8k / 32k)
 
 One 32k generation per domain; the 2k and 8k rows are scored *prefixes* of
 that same stream, which is how the original ladder worked and costs nothing
@@ -342,7 +326,7 @@ domain relative to a high-entropy one, it lifts both.
 This is the practical restatement of the earlier "length helps the detector,
 not the attacker" result, now measured on the largest model in the study.
 
-## 12 — reasoning tokens dominate watermark strength on low-entropy domains
+## 11 — reasoning tokens dominate watermark strength on low-entropy domains
 
 This one came out of a mistake. A Modal re-run of Qwen3.8-27B on code was
 meant to extend the length ladder to 32k, but it used the tokenizer's default
@@ -388,7 +372,7 @@ far larger than prompt variation plausibly explains, but a purpose-built A/B
 on identical prompts would settle it.
 
 
-## 13 — the attack is not context-agnostic: required insertion rate rises with length
+## 12 — the attack is not context-agnostic: required insertion rate rises with length
 
 A 240-cell benchmark on gpt-oss-20b to answer directly: does random
 variation-selector insertion *always* defeat the detector? Grid = 2 domains x
@@ -436,3 +420,47 @@ threshold), consistent with the Mn-category gap holding across the whole grid
 rather than at a single point.
 
 Both of these relationships are plotted in [charts.html](charts.html) (regenerate with `site/gen_charts.py`): watermark z rising with context, and the attack's required insertion rate rising alongside it.
+
+## 13 — DeepSeek-V4-Flash (284B MoE, native FP8), prose + code
+
+Seventh model, and the largest MoE in the study by parameter count. Run on
+2x H200 with the checkpoint's native FP8 weights (156 GB resident, sharded
+across both cards), watermarked through the same HF SynthID processor.
+
+| domain | tokens | scored | mean g | z |
+|---|---|---|---|---|
+| prose | 2048 | 1890 | 0.5697 | **31.60** |
+| prose | 8192 | 7681 | 0.5556 | **57.20** |
+| code | 2048 | 1709 | 0.5291 | **16.48** |
+| code | 8192 | 7103 | 0.5213 | **17.02** |
+
+All four cells detected (threshold 2.33), and it independently reproduces both
+of the study's central results:
+
+**Length increases confidence.** Prose z climbs 31.60 -> 57.20 from 2k to 8k,
+while per-token `mean_g` stays essentially flat (0.5697 -> 0.5556). The extra
+z is token count, not a stronger per-token mark, exactly as the sqrt(n)
+relationship predicts.
+
+**Prose carries a stronger mark than code.** `mean_g` 0.5697 vs 0.5291 at 2k,
+the largest prose/code gap of any model measured here. Consistent with the
+entropy finding: code is lower-entropy, so the tournament has less room to
+bias each choice.
+
+Throughput was ~3.5 tok/s for watermarked generation at this size, which is
+what bounded the run to 8k rather than 32k.
+
+### a scoring note worth recording
+
+The first scoring pass on this model returned `mean_g` of 0.4994-0.5001 across
+every cell -- indistinguishable from the null. That was not a property of the
+model. HF seeds the sampling table with `torch.randint` **per device**, so a
+table built on MPS is uncorrelated with one built on `cuda:0`. Generation had
+happened on cuda; scoring locally on MPS therefore compared against an
+unrelated table and collapsed every score to chance.
+
+Re-scoring on the same device the text was generated on gave the numbers
+above. The tell was that the null was too perfect: a genuinely weak watermark
+drifts around 0.5, it does not sit on it to four digits across four
+independent cells. Any detector result that lands exactly on the null
+deserves a device and key check before it is believed.

@@ -28,45 +28,61 @@ def esc(s): return str(s).replace("&", "&amp;").replace("<", "&lt;")
 # =========================================================================
 # CHART 1 -- z vs context length
 # =========================================================================
+def _catmull(pts, samples=24):
+    """Catmull-Rom through the points -> a smooth path (not straight segments)."""
+    if len(pts) < 3:
+        return " ".join(f"{'M' if i==0 else 'L'}{x:.1f} {y:.1f}" for i,(x,y) in enumerate(pts))
+    P = [pts[0]] + list(pts) + [pts[-1]]
+    out = [f"M{pts[0][0]:.1f} {pts[0][1]:.1f}"]
+    for i in range(len(P)-3):
+        p0,p1,p2,p3 = P[i],P[i+1],P[i+2],P[i+3]
+        for s_ in range(1, samples+1):
+            t = s_/samples; t2=t*t; t3=t2*t
+            x = 0.5*((2*p1[0]) + (-p0[0]+p2[0])*t + (2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2 + (-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3)
+            y = 0.5*((2*p1[1]) + (-p0[1]+p2[1])*t + (2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2 + (-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3)
+            out.append(f"L{x:.1f} {y:.1f}")
+    return " ".join(out)
+
+
 def chart1():
     d = json.load(open(os.path.join(RES, "res_120b_lengths.json")))["cells"]
+    ds4 = json.load(open(os.path.join(RES, "res_ds4_flash.json")))
     doms = [("prose", UV2), ("code", UV), ("reasoning", FLAG)]
     lengths = [2048, 8192, 32768]
     series = {dom: [(L, d[f"{dom}@{L}"]["z"]) for L in lengths] for dom, _ in doms}
+    # DeepSeek-V4-Flash prose, 2k/8k, as a second model on the same axes
+    series["V4 prose"] = [(2048, ds4["prose@2048"]["z"]), (8192, ds4["prose@8192"]["z"])]
 
-    W, H = 620, 380
-    ml, mr, mt, mb = 58, 130, 30, 52
+    W, H = 660, 400
+    ml, mr, mt, mb = 58, 140, 30, 56
     pw, ph = W - ml - mr, H - mt - mb
-    zmax = 34
-    # log2 x scale over 2048..32768
+    zmax = 62
     def xf(L): return ml + (math.log2(L) - math.log2(2048)) / (math.log2(32768) - math.log2(2048)) * pw
     def yf(z): return mt + ph - (z / zmax) * ph
 
     s = [f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" font-family="{FONT}">']
-    # y gridlines + labels
-    for z in [0, 10, 20, 30]:
+    for z in [0, 20, 40, 60]:
         y = yf(z)
         s.append(f'<line x1="{ml}" y1="{y:.1f}" x2="{ml+pw}" y2="{y:.1f}" stroke="{RULE}" stroke-width="1"/>')
         s.append(f'<text x="{ml-10}" y="{y+4:.1f}" fill="{FAINT}" font-size="11" font-family="{MONO}" text-anchor="end">{z}</text>')
-    # threshold
     yt = yf(2.33)
     s.append(f'<line x1="{ml}" y1="{yt:.1f}" x2="{ml+pw}" y2="{yt:.1f}" stroke="{CLEAR}" stroke-width="1" stroke-dasharray="4 3"/>')
-    s.append(f'<text x="{ml+pw}" y="{yt-6:.1f}" fill="{CLEAR}" font-size="10" font-family="{MONO}" text-anchor="end">detection threshold z=2.33</text>')
-    # x labels
+    s.append(f'<text x="{ml+pw}" y="{yt-6:.1f}" fill="{CLEAR}" font-size="10" font-family="{MONO}" text-anchor="end">threshold z=2.33</text>')
     for L in lengths:
-        x = xf(L)
-        s.append(f'<text x="{x:.1f}" y="{mt+ph+20}" fill="{SOFT}" font-size="11" font-family="{MONO}" text-anchor="middle">{L//1024}k</text>')
-    s.append(f'<text x="{ml+pw/2:.1f}" y="{H-8}" fill="{FAINT}" font-size="11" text-anchor="middle">context length (tokens)</text>')
+        s.append(f'<text x="{xf(L):.1f}" y="{mt+ph+20}" fill="{SOFT}" font-size="11" font-family="{MONO}" text-anchor="middle">{L//1024}k</text>')
+    s.append(f'<text x="{ml+pw/2:.1f}" y="{H-10}" fill="{FAINT}" font-size="11" text-anchor="middle">context length (tokens, log scale)</text>')
     s.append(f'<text x="16" y="{mt+ph/2:.1f}" fill="{FAINT}" font-size="11" text-anchor="middle" transform="rotate(-90 16 {mt+ph/2:.1f})">detector z-score</text>')
-    # series
-    for i, (dom, col) in enumerate(doms):
-        pts = series[dom]
-        path = " ".join(f"{'M' if j==0 else 'L'}{xf(L):.1f} {yf(z):.1f}" for j,(L,z) in enumerate(pts))
-        s.append(f'<path d="{path}" fill="none" stroke="{col}" stroke-width="2.5"/>')
-        for L, z in pts:
-            s.append(f'<circle cx="{xf(L):.1f}" cy="{yf(z):.1f}" r="3.5" fill="{col}"/>')
-        lx, lz = pts[-1]
-        s.append(f'<text x="{xf(lx)+10:.1f}" y="{yf(lz)+4:.1f}" fill="{col}" font-size="12" font-family="{MONO}">{dom}</text>')
+
+    order = [("prose", UV2, "120b prose"), ("code", UV, "120b code"),
+             ("reasoning", FLAG, "120b reasoning"), ("V4 prose", CLEAR, "V4 prose")]
+    for key, col, label in order:
+        pts = [(xf(L), yf(z)) for L, z in series[key]]
+        dash = ' stroke-dasharray="5 4"' if key == "V4 prose" else ""
+        s.append(f'<path d="{_catmull(pts)}" fill="none" stroke="{col}" stroke-width="2.5" stroke-linecap="round"{dash}/>')
+        for x, y in pts:
+            s.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3.2" fill="{col}"/>')
+        lx, ly = pts[-1]
+        s.append(f'<text x="{lx+9:.1f}" y="{ly+4:.1f}" fill="{col}" font-size="11" font-family="{MONO}">{label}</text>')
     s.append('</svg>')
     return "".join(s)
 
