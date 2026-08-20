@@ -387,3 +387,50 @@ strong but not perfectly controlled. The `mean_g` gap (0.5056 vs 0.5374) is
 far larger than prompt variation plausibly explains, but a purpose-built A/B
 on identical prompts would settle it.
 
+
+## 13 — the attack is not context-agnostic: required insertion rate rises with length
+
+A 240-cell benchmark on gpt-oss-20b to answer directly: does random
+variation-selector insertion *always* defeat the detector? Grid = 2 domains x
+4 lengths x 5 insertion rates x 8 independent attack seeds, each scored raw
+and normalized against a 16-wrong-key null.
+
+**It does not always work. Success is a function of insertion rate, and the
+rate you need grows with context length.** Code domain, cells below threshold
+out of 8 random seeds:
+
+| insertion rate | @1024 | @2048 | @4096 | @8192 |
+|---|---|---|---|---|
+| 2% | 0/8 | 0/8 | 0/8 | 0/8 |
+| 5% | 1/8 | 0/8 | 0/8 | 0/8 |
+| 10% | 7/8 | 2/8 | **0/8** | **0/8** |
+| 20% | 8/8 | 8/8 | 7/8 | 7/8 |
+| 30% | 8/8 | 8/8 | 8/8 | 8/8 |
+
+Prose (only long enough for 1k/2k here) shows the same shape: 10% gives 5/8 at
+1024 but 1/8 at 2048.
+
+Two things this settles:
+
+**The seed is not the variable that matters; the rate is.** At 20-30% every
+one of the 8 independent random placements succeeds. Randomness of insertion
+is not the weak link -- a fixed rate behaves consistently across seeds. So
+"random insertion works" is true *above a rate threshold* and false below it.
+
+**That threshold climbs with length, in the detector's favour.** The detector
+accumulates signal like sqrt(n), so a longer document has more margin to burn
+through. 10% clears 1024 tokens and fails entirely by 4096. Even 20% starts
+slipping at 4k+. Only 30% held across everything tested (to 8k), and nothing
+here rules out that 16k/32k needs more still.
+
+Overall: **110/240 attack cells (46%) fell below threshold.** A blanket claim
+that the attack "always works" or is "context/architecture-agnostic" is
+refuted by its own success curve. The honest statement is a dose-response
+relationship: it works reliably only when insertion rate exceeds a
+length-dependent threshold (roughly >=20% up to a few thousand tokens, >=30%
+beyond), at which point the invisible-character load on the text is
+substantial even though it stays visually identical.
+
+Normalization tracked raw closely throughout (121/240 vs 110/240 below
+threshold), consistent with the Mn-category gap holding across the whole grid
+rather than at a single point.
