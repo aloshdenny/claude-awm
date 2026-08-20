@@ -528,10 +528,30 @@ def build_model():
             model = AutoModelForCausalLM.from_pretrained(MODEL, device_map={"": 0},
                                                           quantization_config=bnb_cfg).eval()
         else:
-            # device_map="auto" can partially offload experts to CPU under memory
-            # uncertainty, which looked like nonzero-but-crawling GPU util with no
-            # progress. Pin everything to the single GPU explicitly instead.
-            model = AutoModelForCausalLM.from_pretrained(MODEL, device_map={"": 0}, dtype="auto").eval()
+            n_gpu = torch.cuda.device_count()
+            if n_gpu > 1:
+                # multiple GPUs: let accelerate actually shard the model across
+                # them. device_map={"":0} (below) would dump the whole model on
+                # GPU 0 alone and OOM -- that pin was only ever correct for the
+                # single-GPU case, where "auto" caused a different bug (CPU
+                # offload masquerading as crawling-but-nonzero GPU util).
+                #
+                # An earlier OOM here (75.4/79.25GB on GPU 0) turned out to be
+                # caused by a MISSING TRITON install: without it transformers
+                # silently dequantizes native-MXFP4 weights to bf16, roughly
+                # doubling footprint past what even 3x80GB holds. An explicit
+                # max_memory cap was added to force even spreading, but with
+                # Triton installed "auto" (with or without that cap) hung
+                # indefinitely instead: zero disk reads, flat GPU memory,
+                # 100%+ CPU, confirmed across two separate attempts (6+ min
+                # each). "auto" runs a full balanced-memory simulation pass
+                # over every leaf tensor; gpt-oss-120b's 128 experts x 36
+                # layers means tens of thousands of small MoE tensors, and
+                # that's where it's stuck. "sequential" just fills GPUs in
+                # order with no balancing simulation.
+                model = AutoModelForCausalLM.from_pretrained(MODEL, device_map="sequential", dtype="auto").eval()
+            else:
+                model = AutoModelForCausalLM.from_pretrained(MODEL, device_map={"": 0}, dtype="auto").eval()
     else:
         model = AutoModelForCausalLM.from_pretrained(MODEL, dtype=torch.bfloat16).to(DEVICE).eval()
     return tok, model

@@ -6,7 +6,7 @@
 
 Unicode **variation selectors** (category Mn, U+FE00 to U+FE0F and U+E0100 to U+E01EF) drive the detector below threshold and *stay* there. Every other invisible-character attack I tried gets fully reverted by one line of input normalization. Variation selectors don't, because they're meaningful codepoints (emoji presentation, CJK variants) that NFKC will not and should not fold away.
 
-Replicated on three models, two domains:
+Replicated across models and domains:
 
 | model | domain | baseline z | after `vs16_30` | edit rate |
 |---|---|---|---|---|
@@ -18,6 +18,24 @@ Replicated on three models, two domains:
 Threshold is z = 2.33. The first three land under it after the attack, and stay under after normalization (0.09, 0.45, -0.78 respectively). Text renders identically to a human reader. The 27B code row is different in kind: its baseline is already at z = 4.31 with *no attack applied*, so there's no meaningful attack delta to report there, only a bare-detector near-miss. It's included in this table for comparison, not as a fourth replication.
 
 The second real finding needs no attack at all: **low-entropy text is barely watermarked to begin with.** Qwen3.8-27B code generation has a clean baseline of z = 4.31, already near threshold with nothing done to it.
+
+## models tested
+
+Everything in this repo was measured on these, nothing else:
+
+| model | params | where | what was run |
+|---|---|---|---|
+| Qwen3.5-0.8B | 0.8B | Mac (MPS) | full attack ladder, 1k-8k |
+| Qwen3.5-4B | 4B | Mac / 4090 | full attack ladder + the entropy experiment + stego raw/normalized |
+| DeepSeek-R1-Distill-Qwen-14B | 14B | Mac (MLX, 4-bit) | watermark + detect, reasoning traces |
+| gpt-oss-20b | 20B | 3090 / 4090 | full attack ladder to 32k, prose + code, variation selectors |
+| Qwen3.8-27B | 27B | RunPod H100 / Modal H100 | prose + code, variation selectors, thinking-mode contrast |
+| gpt-oss-120b | 120B | Modal H100 (MXFP4) | prose + code + reasoning at 2k / 8k / 32k |
+
+Not every experiment ran on every model, and the tables below say which ran
+where. Larger models were added as the interesting questions narrowed, so the
+attack ladder is broad on the small ones and the length and domain work is
+concentrated on the large ones.
 
 ## what this is
 
@@ -65,7 +83,7 @@ It doesn't work. The whole surface-edit ladder on gpt-oss-20b, out to 32k tokens
 | AmE to BrE + abbreviations | 1.3% | ~28 | ~100 |
 | delete 40% of every word | 38% | 4.9 | 25.4 |
 
-Across three models (0.8B, 4B, 20B = 294 cells), exactly **one** cell crossed threshold: deleting 39% of every word at the shortest length on the 4B. That's not an attack, that's shredding the document.
+Across the three models this ladder ran on (0.8B, 4B, 20B = 294 cells), exactly **one** cell crossed threshold: deleting 39% of every word at the shortest length on the 4B. That's not an attack, that's shredding the document.
 
 Two things surprised me:
 
@@ -117,7 +135,6 @@ Being honest about the gaps.
 
 - **The 27B code numbers are uninformative as an attack result.** The unattacked baseline there is z = 4.31, so you can't demonstrate an attack beating a detector that's already nearly blind. I kept those rows but labelled them; the meaningful signal is the baseline, not the attack deltas.
 - **Whether the 27B code result is entropy or model style is unresolved.** It needs a per-token entropy measurement like the 4B got, which I didn't run for that model.
-- **GLM-5.2 produced zero data.** I rented an 8xA100 pod and hit five infra failures in a row (deprecated download cmd, torch/torchvision ABI breaks, the model loading into host RAM instead of the GPUs), burned ~$25 including $19 on a pod that idled because I trusted a download that never started, and terminated it with nothing. Kimi-K3 was never attempted; at ~1.5TB even quantized it needs 20+ A100s. The frontier-scale question is open.
 - **Three community quantized checkpoints of Qwen3.8-27B failed to load** (FP8 wanting a torch dtype we don't have, two AWQ/compressed-tensors repacks with packing mismatches). Ran it at bf16 on an H100 instead. If you're reproducing, skip the repacks.
 - **The detector is the untrained mean-g scorer, not the trained Bayesian one** from the paper. The Bayesian detector would likely be *more* sensitive, so these z values are a floor, but I didn't measure it.
 - **My homoglyph fidelity claim is "typical reader," not proven.** Cyrillic а is category Ll, so its invisibility is a font property, not a Unicode guarantee.
