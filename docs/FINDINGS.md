@@ -327,3 +327,43 @@ unchanged. Verified bit-identical at vocab 1k/8k/64k before use:
 for any future Apple-Silicon run. (Finding this required fixing a test bug of
 mine first: the numpy `reweight` mutates its input in place, so the CPU call
 was corrupting the input the GPU call then read.)
+
+## 10 — gpt-oss-120b on an H100: the run that section 9 could not do locally
+
+Same model, same watermark, different machine. On Modal with a single H100
+(80 GB) it loads **native MXFP4 at 65.3 GB resident** with room to spare, and
+all three domains watermark and detect cleanly:
+
+| domain | tokens | scored | mean g | z | tok/s |
+|---|---|---|---|---|---|
+| prose | 2048 | 1989 | 0.5293 | **16.09** | 10.3 |
+| code | 2048 | 1954 | 0.5194 | **11.97** | 14.0 |
+| reasoning | 2268 | 2047 | 0.5207 | **11.61** | 13.2 |
+
+Threshold 2.33; all three detected. Roughly 15-30x the throughput the Mac
+would have managed had it run at all, and it completed in minutes rather than
+the 14+ hours estimated locally.
+
+**The load figure is the thing to check, not the model size.** 65.3 GB
+resident confirms native MXFP4. With Triton absent, transformers silently
+dequantizes those weights to bf16 (~240 GB for this model) and OOMs -- the
+same trap noted earlier in the multi-GPU work. Installing `triton` and
+`kernels` in the image is what makes an 80 GB card sufficient.
+
+The domain ordering matches the entropy finding: **prose (16.09) carries a
+clearly stronger mark than code (11.97) or reasoning (11.61)**. Worth noting
+all three `mean_g` values cluster near 0.52, below the 0.56-0.60 seen on
+smaller models' prose, so the per-token signal here is thinner across the
+board and the high z comes partly from token count.
+
+### Kimi-K3: checked and rejected without spending
+
+Three independent blockers, any one fatal, so no compute was purchased:
+
+- `KimiK3ForConditionalGeneration` is **not in the transformers CausalLM
+  registry** -- the harness cannot drive it regardless of hardware.
+- `nvidia/Kimi-K3-NVFP4` is `modelopt_mixed` (MIXED_PRECISION), not uniform
+  FP4, so the repo is **1,609.9 GB** -- about 21x H100, needing multi-node at
+  roughly $96/hr.
+- The GGUF builds (smallest quant 551.5 GB) **cannot be watermarked at all**,
+  since llama.cpp does not expose logits during generation. Size is moot.

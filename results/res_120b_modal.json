@@ -1,0 +1,37 @@
+{
+ "model": "openai/gpt-oss-120b",
+ "platform": "Modal, 1x H100 80GB",
+ "quantization": "native MXFP4 (65.3 GB resident on GPU, verified not dequantized)",
+ "ngram_len": 5,
+ "depth": 30,
+ "n_null": 16,
+ "threshold": 2.33,
+ "domains": {
+  "prose": {
+   "tokens": 2048,
+   "scored": 1989,
+   "mean_g": 0.5293,
+   "z": 16.09,
+   "detected": true,
+   "tok_per_s": 10.3
+  },
+  "code": {
+   "tokens": 2048,
+   "scored": 1954,
+   "mean_g": 0.5194,
+   "z": 11.97,
+   "detected": true,
+   "tok_per_s": 14.0
+  },
+  "reasoning": {
+   "tokens": 2268,
+   "scored": 2047,
+   "mean_g": 0.5207,
+   "z": 11.61,
+   "detected": true,
+   "tok_per_s": 13.2
+  }
+ },
+ "note": "Same model that was infeasible locally (see section 9). On an H100 it fits VRAM natively with headroom and runs 15-30x faster than the Mac's paging estimate. Native MXFP4 confirmed by 65.3GB resident: with Triton absent transformers silently dequantizes to bf16 (~240GB) and OOMs.",
+ "entropy_ordering": "prose z=16.09 > code z=11.97 ~ reasoning z=11.61, consistent with the entropy finding: prose carries the strongest mark. Note all three mean_g values sit near 0.52, well below the 0.56-0.60 seen on smaller models' prose."
+}
