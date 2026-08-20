@@ -92,6 +92,8 @@ Two things surprised me:
 
 Full mechanism and per-attack tables in [docs/FINDINGS.md](docs/FINDINGS.md).
 
+**[Charts: watermark strength vs context, and attack cost vs context →](https://aloshdenny.com/claude-awm/charts.html)**  Two figures from the study data.
+
 **[Try the interactive version →](https://aloshdenny.com/claude-awm/)** Real study samples with a before/after reveal toggle, plus a playground to run the attack transform on your own text. It won't tell you if arbitrary pasted text is really watermarked (that needs a key we don't have), and it says so; see [site/](site/) for the generator script.
 
 ## the finding that needs no attack

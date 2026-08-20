@@ -434,3 +434,5 @@ substantial even though it stays visually identical.
 Normalization tracked raw closely throughout (121/240 vs 110/240 below
 threshold), consistent with the Mn-category gap holding across the whole grid
 rather than at a single point.
+
+Both of these relationships are plotted in [charts.html](charts.html) (regenerate with `site/gen_charts.py`): watermark z rising with context, and the attack's required insertion rate rising alongside it.
