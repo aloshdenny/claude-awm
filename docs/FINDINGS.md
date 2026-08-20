@@ -439,3 +439,58 @@ prompts vs three here, overlapping but not identical), so the contrast is
 strong but not perfectly controlled. The `mean_g` gap (0.5056 vs 0.5374) is
 far larger than prompt variation plausibly explains, but a purpose-built A/B
 on identical prompts would settle it.
+
+## 13 — GLM-5.2 on Blackwell: OOM by 370 MB (a fixable config error, not a wall)
+
+Third attempt at GLM-5.2, and the closest. `cyankiwi/GLM-5.2-AWQ-INT4`
+(474 GB) on Modal, 2x B300 (287 GB each, 574 GB total).
+
+**What worked, and answers an open question from earlier attempts:**
+
+- `GlmMoeDsaForCausalLM` is recognised by transformers.
+- `compressed-tensors` handles the AWQ-INT4 checkpoint **natively on
+  Blackwell** -- quantization config applied across 222 modules, no silent
+  dequantization to bf16 (which would have been ~1.9 TB and instantly fatal).
+  The `sm_100` kernel-support risk did not materialise.
+- All 2008 weight shards loaded, in about 3 minutes.
+
+**What failed:**
+
+```
+OOM on device 1: tried to allocate 12.88 GB, free 12.51 GB, total 287.43 GB
+```
+
+Short by **370 MB**. A 474 GB model on 574 GB of VRAM leaves ~100 GB of
+headroom, and `device_map="auto"` packed device 1 nearly full, leaving no room
+for KV cache. The run then hung rather than raising, burning GPU time with no
+progress until it was killed.
+
+**The fix is one argument**, now applied in `modal/app_glm52.py`:
+
+```python
+max_memory={i: "225GiB" for i in range(n_gpu)}
+```
+
+Capping each card at 225 GiB of 287 GiB forces even distribution and reserves
+~60 GB per device for activations and KV cache. This is a configuration error
+on my part, not a property of the model or the hardware: I gated carefully on
+*quantization* (checking resident memory to catch dequantization) but never
+gated on *memory distribution*, which is what actually bit.
+
+Unlike sections 9 and the Kimi-K3 entry, **this one is not a structural
+impossibility**. GLM-5.2 fits 2x B300 and should run with the cap above,
+estimated $6-8 for one domain at 32k. It stopped here because the $30 credit
+was exhausted, not because the approach is wrong.
+
+### cost record for the Modal work
+
+| item | cost |
+|---|---|
+| gpt-oss-120b: download (CPU) + 9 cells at 2k/8k/32k | ~$9 |
+| Qwen3.8-27B: download (CPU) + code 32k + partial prose | ~$7 |
+| GLM-5.2: 474 GB download (CPU) + 23 min on 2x B300, failed | ~$6 |
+| **total** | **~$22 of $30** |
+
+Downloads ran on CPU-only containers into persistent Volumes throughout, so no
+GPU time was ever spent waiting on a transfer, and a failed run never had to
+re-download. That decision is why three models fit in $30.
