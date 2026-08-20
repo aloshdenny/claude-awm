@@ -477,10 +477,31 @@ on my part, not a property of the model or the hardware: I gated carefully on
 *quantization* (checking resident memory to catch dequantization) but never
 gated on *memory distribution*, which is what actually bit.
 
-Unlike sections 9 and the Kimi-K3 entry, **this one is not a structural
-impossibility**. GLM-5.2 fits 2x B300 and should run with the cap above,
-estimated $6-8 for one domain at 32k. It stopped here because the $30 credit
-was exhausted, not because the approach is wrong.
+### retry with the fix: OOM solved, still does not run
+
+The `max_memory` cap was tried. **It worked at what it targeted and was not
+enough.** Second attempt, same hardware, `max_memory={i: "225GiB"}`:
+
+- all 2008 shards loaded in 2:06, faster than before
+- **no OOM** -- the 370 MB shortfall is genuinely gone
+- then **hung for 22 minutes** with no `loaded in` print and no tokens, and
+  was stopped at ~$5.60 before the budget cap
+
+So the OOM was a real bug and the cap really fixed it, but the OOM was not the
+only problem: something in the post-load `accelerate` dispatch stalls on this
+model regardless. Both attempts show the same shape -- weights load fine, then
+nothing.
+
+**Corrected conclusion:** I previously wrote that this was "one argument" from
+working. That was wrong, and stated with more confidence than one diagnosed
+symptom justified. GLM-5.2 on 2x B300 does not run with either configuration
+tried. A third attempt would need a genuinely different approach (more cards
+for real headroom, or a different dispatch/offload path), not another
+parameter tweak, and I would not predict success without evidence.
+
+Total across all three GLM attempts (RunPod plus two on Modal): roughly $31
+spent, zero tokens generated. It remains the one model in this study that was
+seriously attempted and never produced a single measurement.
 
 ### cost record for the Modal work
 
