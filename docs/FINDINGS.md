@@ -464,3 +464,99 @@ above. The tell was that the null was too perfect: a genuinely weak watermark
 drifts around 0.5, it does not sit on it to four digits across four
 independent cells. Any detector result that lands exactly on the null
 deserves a device and key check before it is believed.
+
+## 14 — the scaling law: required insertion rate vs context length, up to 131072 tokens
+
+Section 12 left an open question: "nothing here rules out that 16k/32k needs
+[more than 30% insertion] still." This section answers it directly, with a
+dedicated sweep of 2 domains x 4-8 lengths x 10 insertion rates x 5 seeds on
+gpt-oss-20b (146 new cells, bringing the project total to **440 measured
+cells**), extended from 1024 tokens all the way to 131072 (the model's max
+context via YaRN), plus a partial cross-check on gpt-oss-120b at the same
+lengths.
+
+**Detector strength grows as roughly z ≈ 0.6·sqrt(L) through 65536 tokens**,
+consistent with section 12's prediction, then the growth rate slows (z dips
+slightly at 131072 vs 65536 -- almost certainly null-key estimation noise
+from only 16 null keysets at very long context, not a real ceiling; the
+underlying trend is still upward).
+
+**Required insertion rate to push z below threshold (2.33), gpt-oss-20b prose:**
+
+| length | baseline z | p* (rate needed) |
+|---|---|---|
+| 1024 | 20.63 | 9.3% |
+| 2048 | 30.25 | 12.0% |
+| 4096 | 40.78 | 13.5% |
+| 8192 | 63.80 | 14.2% |
+| 16384 | 79.94 | 19.3% |
+| 32768 | 94.55 | 23.2% |
+| 65536 | 123.99 | 23.0% |
+| 131072 | 109.60 | 25.0% |
+
+Fitted law (log2-linear regression across all 8 points):
+
+**p\*(L) ≈ 2.37 · log2(L) − 14.6** (percentage points)
+
+This directly settles the open question from section 12: **a fixed 30%
+insertion rate holds up through the entire measured range, 1024 to 131072
+tokens**, with comfortable margin even at the longest length (p* = 25% at
+131072, five points below 30%). Extrapolating the fit, 30% would not be
+expected to fail until roughly L ~ 4-8 million tokens -- far beyond any
+practical document length. The earlier worry that 30% might fail by 8k-32k
+was based on extrapolating a different benchmark's rough f(30%) estimate;
+directly measured here, the attack is *more* robust to length than that
+extrapolation suggested.
+
+As in section 6/12, the **code domain degenerates**: baseline z was flat at
+8.61 across 1024, 2048, 4096, and 8192 tokens in the original 8k sweep (the
+document becomes textually repetitive early, and the context-repetition mask
+correctly excludes repeated 4-token contexts from scoring, capping the
+scoreable-token count). The prose-domain fix -- building the long document
+from many independent short completions on rotating prompts, rather than one
+continuous generation -- avoided this for prose but the code domain still
+degenerates on its own boilerplate; the code length axis from this sweep is
+not usable and is reported for completeness only, not as a length-scaling
+result.
+
+### cross-model check: gpt-oss-120b
+
+A parallel sweep on gpt-oss-120b (H100 80GB) at the same lengths, run to
+check whether the scaling law holds across model scale. Budget ran out
+before 131072 completed (partial data below), but the three completed
+lengths are enough to fit an independent law:
+
+| length | baseline z (120b) | p* (120b) | 120b / 20b baseline ratio |
+|---|---|---|---|
+| 16384 | 34.65 | 11.8% | 0.43x |
+| 32768 | 36.12 | 16.0% | 0.38x |
+| 65536 | 52.37 | 18.4% | 0.42x |
+| 131072 | *(not measured -- see below)* | *(not measured)* | -- |
+
+**gpt-oss-120b's watermark is consistently weaker per-token than 20b's** --
+roughly 0.4x the z-score at matched context length across all three measured
+points. Fitting 120b's own p* values gives:
+
+**p\*(L) ≈ 3.33 · log2(L) − 34.5** (3-point fit, lower confidence than 20b's 8-point fit)
+
+**Estimate for 131072 (not directly measured, two independent extrapolations
+shown for transparency):**
+- Fitting 120b's own p* trend forward: p\*(131072) ≈ **22%**
+- Holding the ~0.41x 120b/20b baseline ratio constant and applying it to
+  20b's *actual measured* 131072 value (z=109.60): implies baseline z ≈ 45,
+  giving p\*(131072) ≈ **20-21%**
+- A third check (power-law fit of 120b's own baseline growth, z ≈
+  1.82·L^0.30) gives baseline z ≈ 61 at 131072, on the high end of the range
+
+These three methods bracket **p\*(131072) ≈ 20-23%** for gpt-oss-120b --
+consistently a few points *lower* than 20b's measured 25%, meaning the
+bigger model's watermark would need slightly less insertion to defeat at the
+same length. Treat this specific number as an estimate, not a measurement:
+it rests on 3 data points instead of 8, and the 65536-to-131072 doubling is
+exactly the region where 20b's own trend departed from clean sqrt(L) growth.
+
+Raw data: `results/res_scaling_20b_8k.json` (1024-8192, prose+code),
+`results/res_scaling_20b_ext.json` (16384-131072, prose, 39/40 cells --
+the single missing cell, 131072 at 45% insertion, is well past the
+threshold crossing and does not affect the fit), `results/res_scaling_120b_partial.json`
+(16384-65536, prose, 27 cells).

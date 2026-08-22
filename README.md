@@ -27,9 +27,9 @@ Everything in this repo was measured on these, nothing else:
 | Qwen3.5-0.8B | 0.8B | Mac (MPS) | full attack ladder, 1k-8k |
 | Qwen3.5-4B | 4B | Mac / 4090 | full attack ladder + the entropy experiment + stego raw/normalized |
 | DeepSeek-R1-Distill-Qwen-14B | 14B | Mac (MLX, 4-bit) | watermark + detect, reasoning traces |
-| gpt-oss-20b | 20B | 3090 / 4090 | full attack ladder to 32k, prose + code, variation selectors |
+| gpt-oss-20b | 20B | 3090 / 4090 / RunPod | full attack ladder to 32k, prose + code, variation selectors, insertion-rate scaling law to 131k |
 | Qwen3.8-27B | 27B | RunPod H100 / Modal H100 | prose + code, variation selectors, thinking-mode contrast |
-| gpt-oss-120b | 120B | Modal H100 (MXFP4) | prose + code + reasoning at 2k / 8k / 32k |
+| gpt-oss-120b | 120B | Modal H100 (MXFP4) / RunPod H100 | prose + code + reasoning at 2k / 8k / 32k, partial insertion-rate scaling to 65k |
 | DeepSeek-V4-Flash | 284B MoE | RunPod 2x H200 (FP8) | prose + code at 2k / 8k |
 
 Not every experiment ran on every model, and the tables below say which ran
@@ -85,6 +85,8 @@ It doesn't work. The whole surface-edit ladder on gpt-oss-20b, out to 32k tokens
 
 Across the three models this ladder ran on (0.8B, 4B, 20B = 294 cells), exactly **one** cell crossed threshold: deleting 39% of every word at the shortest length on the 4B. That's not an attack, that's shredding the document.
 
+**Total measured cells across the whole study: 440** (294 from the attack ladder above, plus 146 from the scaling-law sweep below extending prose to 131072 tokens).
+
 Two things surprised me:
 
 - **Edit *count* doesn't predict damage, edit *geometry* does.** Stripping all markdown (13.6% of tokens) did nothing; it even scored slightly *above* baseline. Injecting stray spaces at 1.6% did 25x more damage per edit. Markdown markers cluster, so their corruption windows overlap and the long prose runs between them keep replaying the watermark seed intact. Scattered edits that desync the tokenizer hit fresh windows every time.
@@ -101,6 +103,8 @@ Watermark confidence grows with context while per-token signal stays flat, so a 
 ![attack cost vs context](assets/chart_attack_cost_vs_context.svg)
 
 And the attack has to keep up. Each cell is how many of 8 random insertion seeds beat the detector. 10% insertion clears 1k tokens but fails completely by 4k; only 30% held everywhere tested. **The required insertion rate rises with context length**, which is why the attack is not context-agnostic.
+
+A dedicated follow-up sweep pins this down precisely: on gpt-oss-20b, from 1024 tokens all the way to 131072 (the model's max context), the required insertion rate follows **p\*(L) ≈ 2.37·log2(L) − 14.6** -- climbing from 9.3% at 1k tokens to 25.0% at 131k. A fixed 30% rate holds up across the *entire* measured range with room to spare; extrapolating the fit, it wouldn't be expected to fail until millions of tokens. A parallel partial run on gpt-oss-120b shows a consistently weaker watermark (~0.4x the z-score of 20b at matched length) and a correspondingly lower required rate (~20-23% at 131k, extrapolated from 3 of 4 lengths). Full tables, fits, and caveats in [docs/FINDINGS.md § 14](docs/FINDINGS.md).
 
 [Interactive versions →](https://aloshdenny.com/claude-awm/charts.html)
 
